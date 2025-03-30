@@ -1,0 +1,13 @@
+.vscode
+/vendor/
+composer.lock
+/build/
+task/
+.idea/
+scratch
+phpunit.xml
+*.code-workspace
+.vscode
+ray.php
+
+**/CLAUDE.local.md

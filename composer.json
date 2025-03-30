@@ -1,0 +1,74 @@
+{
+  "name": "prism-php/relay",
+  "description": "A Prism tool for interacting with MCP servers",
+  "type": "library",
+  "require": {
+    "php": "^8.3",
+    "prism-php/prism": "^0.56.0",
+    "laravel/framework": "^11.0|^12.0"
+  },
+  "require-dev": {
+    "pestphp/pest": "^3.0",
+    "laravel/pint": "^1.14",
+    "phpstan/phpstan": "^1.11",
+    "pestphp/pest-plugin-arch": "^3.0",
+    "pestphp/pest-plugin-laravel": "^3.0",
+    "phpstan/extension-installer": "^1.3",
+    "phpstan/phpstan-deprecation-rules": "^1.2",
+    "rector/rector": "^1.1",
+    "orchestra/testbench": "^10.0",
+    "guzzlehttp/guzzle": "^7.8",
+    "projektgopher/whisky": "^0.7.0"
+  },
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Prism\\Relay\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "authors": [
+    {
+      "name": "TJ MIller",
+      "email": "hello@echolabs.dev"
+    }
+  ],
+  "scripts": {
+    "post-install-cmd": [
+      "whisky update"
+    ],
+    "post-update-cmd": [
+      "whisky update"
+    ],
+    "format": [
+      "@php vendor/bin/pint --ansi",
+      "@php vendor/bin/rector process --no-diffs"
+    ],
+    "test": [
+      "@php vendor/bin/pest --parallel"
+    ],
+    "types": [
+      "@php vendor/bin/phpstan analyse --verbose --ansi"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Prism\\Relay\\RelayServiceProvider"
+      ],
+      "aliases": {
+        "Relay": "Prism\\Relay\\Facades\\Relay"
+      }
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true,
+      "phpstan/extension-installer": true
+    }
+  }
+}

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+_header() {
+    printf "\e[38;5;4m%s\e[0m\n" "$1"
+}
+
+main() {
+    _header "Running phpstan..."
+    composer types
+}
+
+main "$@"

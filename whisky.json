@@ -1,0 +1,6 @@
+{
+  "disabled": [],
+  "hooks": {
+    "pre-commit": ["bin/git-hooks/formatting", "bin/git-hooks/types"]
+  }
+}
