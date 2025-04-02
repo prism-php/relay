@@ -32,6 +32,7 @@ return [
         'puppeteer' => [
             'command' => ['npx', '-y', '@modelcontextprotocol/server-puppeteer'],
             'timeout' => 30,
+            'env' => [],
             'transport' => \Prism\Relay\Enums\Transport::Stdio,
         ],
         'github' => [
@@ -49,8 +50,6 @@ return [
 Here's how you can integrate MCP tools into your Prism agent:
 
 ```php
-<?php
-
 use Prism\Prism\Prism;
 use Prism\Relay\Facades\Relay;
 use Prism\Prism\Enums\Provider;
@@ -137,6 +136,7 @@ For locally running MCP servers that communicate via standard I/O:
     'command' => ['npx', '-y', '@modelcontextprotocol/server-puppeteer'],
     'timeout' => 30,
     'transport' => Transport::Stdio,
+    'env' => [],
 ],
 ```
 
