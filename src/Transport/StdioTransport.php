@@ -84,9 +84,9 @@ class StdioTransport implements Transport
     protected function configIsValid(): bool
     {
         return isset($this->config['command'])
-            || is_array($this->config['command'])
-            || isset($this->config['env'])
-            || is_array($this->config['env']);
+            && is_array($this->config['command'])
+            && isset($this->config['env'])
+            && is_array($this->config['env']);
     }
 
     protected function isProcessRunning(): bool
