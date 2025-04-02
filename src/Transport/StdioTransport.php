@@ -25,9 +25,7 @@ class StdioTransport implements Transport
     public function __construct(
         protected array $config
     ) {
-        if (! $this->configIsValid()) {
-            throw new ServerConfigurationException('The "command" configuration is required for stdio transport');
-        }
+        $this->validateConfig();
     }
 
     public function __destruct()
@@ -81,12 +79,15 @@ class StdioTransport implements Transport
         }
     }
 
-    protected function configIsValid(): bool
+    protected function validateConfig(): void
     {
-        return isset($this->config['command'])
-            && is_array($this->config['command'])
-            && isset($this->config['env'])
-            && is_array($this->config['env']);
+        if (! isset($this->config['command']) || ! is_array($this->config['command'])) {
+            throw new ServerConfigurationException('The "command" configuration is required for stdio transport');
+        }
+
+        if (! isset($this->config['env']) || ! is_array($this->config['env'])) {
+            throw new ServerConfigurationException('The "env" configuration is required for stdio transport');
+        }
     }
 
     protected function isProcessRunning(): bool
