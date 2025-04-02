@@ -15,6 +15,7 @@ beforeEach(function (): void {
     $this->config = [
         'command' => ['echo', '"{"jsonrpc":"2.0","id":"1","result":{"success":true}}"'],
         'timeout' => 30,
+        'env' => ['TEST_ENV' => 'value'],
     ];
 });
 
@@ -36,6 +37,15 @@ it('requires array command config', function (): void {
 
     expect(fn (): \Prism\Relay\Transport\StdioTransport => new StdioTransport($configWithStringCommand))
         ->toThrow(ServerConfigurationException::class, 'The "command" configuration is required for stdio transport');
+});
+
+it('requires env config', function (): void {
+    $configWithoutEnv = [
+        'command' => ['echo', '"{"jsonrpc":"2.0","id":"1","result":{"success":true}}"'],
+    ];
+
+    expect(fn (): \Prism\Relay\Transport\StdioTransport => new StdioTransport($configWithoutEnv))
+        ->toThrow(ServerConfigurationException::class, 'The "env" configuration is required for stdio transport');
 });
 
 it('starts and initializes process', function (): void {

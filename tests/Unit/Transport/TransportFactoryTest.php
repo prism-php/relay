@@ -26,6 +26,7 @@ it('creates stdio transport', function (): void {
     $config = [
         'command' => ['node', 'server.js'],
         'timeout' => 30,
+        'env' => [],
     ];
 
     $transport = TransportFactory::create(TransportEnum::Stdio, $config);
