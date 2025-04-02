@@ -36,6 +36,7 @@ return [
     |     'transport' => Transport::Stdio,
     |     'command' => 'npx -y @modelcontextprotocol/server-puppeteer',
     |     'timeout' => 60,
+          'env' => [],
     | ]
     |
     */
@@ -44,6 +45,7 @@ return [
             'transport' => Transport::Stdio,
             'command' => ['npx', '-y', '@modelcontextprotocol/server-puppeteer'],
             'timeout' => env('RELAY_PUPPETEER_SERVER_TIMEOUT', 60),
+            'env' => [],
         ],
     ],
 
