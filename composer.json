@@ -18,7 +18,8 @@
     "rector/rector": "^1.1",
     "orchestra/testbench": "^10.0",
     "guzzlehttp/guzzle": "^7.8",
-    "projektgopher/whisky": "^0.7.0"
+    "projektgopher/whisky": "^0.7.0",
+    "mockery/mockery": "^1.6"
   },
   "license": "MIT",
   "autoload": {
