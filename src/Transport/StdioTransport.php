@@ -25,9 +25,7 @@ class StdioTransport implements Transport
     public function __construct(
         protected array $config
     ) {
-        if (! isset($this->config['command']) || ! is_array($this->config['command'])) {
-            throw new ServerConfigurationException('The "command" configuration is required for stdio transport');
-        }
+        $this->validateConfig();
     }
 
     public function __destruct()
@@ -81,6 +79,17 @@ class StdioTransport implements Transport
         }
     }
 
+    protected function validateConfig(): void
+    {
+        if (! isset($this->config['command']) || ! is_array($this->config['command'])) {
+            throw new ServerConfigurationException('The "command" configuration is required for stdio transport');
+        }
+
+        if (! isset($this->config['env']) || ! is_array($this->config['env'])) {
+            throw new ServerConfigurationException('The "env" configuration is required for stdio transport');
+        }
+    }
+
     protected function isProcessRunning(): bool
     {
         return $this->process && $this->process->isRunning();
@@ -95,7 +104,7 @@ class StdioTransport implements Transport
 
         $this->process = Process::fromShellCommandline(
             command: $command,
-            env: getenv(),
+            env: $this->config['env'] ?? [],
             input: $this->inputStream,
             timeout: $timeout
         );
