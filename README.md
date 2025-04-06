@@ -136,12 +136,19 @@ For locally running MCP servers that communicate via standard I/O:
     'command' => ['npx', '-y', '@modelcontextprotocol/server-puppeteer'],
     'timeout' => 30,
     'transport' => Transport::Stdio,
-    'env' => [],
+    'env' => [
+        'DEBUG' => 'mcp:*',  // Enable debug logging
+        'NODE_ENV' => 'production',  // Set Node environment
+        'MCP_SERVER_PORT' => '3001',  // Set a custom port for the server
+    ],
 ],
 ```
 
 > [!NOTE]
 > The STDIO transport launches a subprocess and communicates with it through standard input/output. This is perfect for running tools directly on your application server.
+
+> [!TIP]
+> The `env` option allows you to pass environment variables to the MCP server process. This is useful for configuring server behavior, enabling debugging, or setting authentication details.
 
 ## Advanced Usage
 
