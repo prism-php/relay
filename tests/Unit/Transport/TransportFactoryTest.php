@@ -2,43 +2,54 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Transport;
-
 use Prism\Relay\Enums\Transport as TransportEnum;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Transport\HttpTransport;
 use Prism\Relay\Transport\StdioTransport;
 use Prism\Relay\Transport\TransportFactory;
 
-it('creates http transport', function (): void {
+it('creates HTTP transport', function (): void {
     $config = [
-        'url' => 'http://localhost:8000/api',
-        'api_key' => 'test-api-key',
+        'url' => 'http://example.com/api',
+        'api_key' => 'test-key',
         'timeout' => 30,
     ];
 
     $transport = TransportFactory::create(TransportEnum::Http, $config);
 
-    expect($transport)->toBeInstanceOf(HttpTransport::class);
+    expect($transport)
+        ->toBeInstanceOf(HttpTransport::class);
 });
 
-it('creates stdio transport', function (): void {
+it('creates STDIO transport', function (): void {
     $config = [
-        'command' => ['node', 'server.js'],
+        'command' => ['test', 'command'],
+        'env' => ['TEST' => 'value'],
         'timeout' => 30,
-        'env' => [],
     ];
 
     $transport = TransportFactory::create(TransportEnum::Stdio, $config);
 
-    expect($transport)->toBeInstanceOf(StdioTransport::class);
+    expect($transport)
+        ->toBeInstanceOf(StdioTransport::class);
 });
 
-it('throws exception for stdio without command', function (): void {
+it('throws exception for STDIO transport with missing command', function (): void {
     $config = [
+        'env' => ['TEST' => 'value'],
         'timeout' => 30,
     ];
 
     expect(fn (): \Prism\Relay\Transport\Transport => TransportFactory::create(TransportEnum::Stdio, $config))
         ->toThrow(ServerConfigurationException::class, 'The "command" configuration is required for stdio transport');
+});
+
+it('throws exception for STDIO transport with missing env', function (): void {
+    $config = [
+        'command' => ['test', 'command'],
+        'timeout' => 30,
+    ];
+
+    expect(fn (): \Prism\Relay\Transport\Transport => TransportFactory::create(TransportEnum::Stdio, $config))
+        ->toThrow(ServerConfigurationException::class, 'The "env" configuration is required for stdio transport');
 });
