@@ -104,7 +104,7 @@ class StdioTransport implements Transport
 
         $this->process = Process::fromShellCommandline(
             command: $command,
-env: $this->config['env'] ?? []
+            env: $this->config['env'] ?? [],
             input: $this->inputStream,
             timeout: $timeout
         );
