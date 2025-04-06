@@ -61,7 +61,7 @@ it('sends requests properly', function (): void {
     expect($result)->toBe(['status' => 'success']);
 
     // Verify the request was sent as expected
-    Http::assertSent(fn($request): bool => $request->url() === 'http://example.com/api' &&
+    Http::assertSent(fn ($request): bool => $request->url() === 'http://example.com/api' &&
            $request['method'] === 'test/method' &&
            $request['params']['param'] === 'value');
 });
@@ -118,7 +118,7 @@ it('supports API key authentication', function (): void {
 
     $transport->sendRequest('test/method');
 
-    Http::assertSent(fn($request) => $request->hasHeader('Authorization', 'Bearer test-key'));
+    Http::assertSent(fn ($request) => $request->hasHeader('Authorization', 'Bearer test-key'));
 });
 
 it('works without API key', function (): void {
@@ -137,7 +137,7 @@ it('works without API key', function (): void {
 
     $transport->sendRequest('test/method');
 
-    Http::assertSent(fn($request): bool => ! $request->hasHeader('Authorization'));
+    Http::assertSent(fn ($request): bool => ! $request->hasHeader('Authorization'));
 });
 
 it('uses default timeout when not specified', function (): void {

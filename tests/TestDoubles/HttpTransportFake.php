@@ -61,6 +61,7 @@ class HttpTransportFake extends HttpTransport
 
         return $this;
     }
+
     /**
      * @param  array<string, mixed>  $params
      */
