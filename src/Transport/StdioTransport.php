@@ -99,12 +99,11 @@ class StdioTransport implements Transport
     {
         $this->inputStream = new InputStream;
 
-        $command = implode(' ', $this->config['command']);
         $timeout = $this->getTimeout();
 
         $this->process = Process::fromShellCommandline(
-            command: $command,
-            env: $this->config['env'] ?? [],
+            command: $this->command(),
+            env: $this->env(),
             input: $this->inputStream,
             timeout: $timeout
         );
@@ -116,6 +115,27 @@ class StdioTransport implements Transport
     protected function getTimeout(): int
     {
         return $this->config['timeout'] ?? 30;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function env(): array
+    {
+        return $this->config['env'] ?? [];
+    }
+
+    protected function command(): string
+    {
+        $parts = array_map(function (string|array $part): string {
+            if (is_array($part)) {
+                return addslashes(json_encode($part) ?: '');
+            }
+
+            return $part;
+        }, $this->config['command']);
+
+        return implode(' ', $parts);
     }
 
     /**
