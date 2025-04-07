@@ -25,6 +25,20 @@ it('requires env configuration', function (): void {
         ->toThrow(ServerConfigurationException::class, 'The "env" configuration is required for stdio transport');
 });
 
+it('properly encodes array command arguments as JSON', function (): void {
+    $config = [
+        'command' => ['test', 'command', ['foo' => 'bar', 'baz' => 123]],
+        'env' => ['TEST' => 'value'],
+        'timeout' => 30,
+    ];
+
+    $transport = new StdioTransportFake($config);
+    $command = $transport->command();
+
+    // JSON arrays in the command should be properly encoded
+    expect($command)->toBe('test command {\"foo\":\"bar\",\"baz\":123}');
+});
+
 it('starts the process properly', function (): void {
     $transport = new StdioTransportFake([
         'command' => ['test', 'command'],
