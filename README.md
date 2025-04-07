@@ -133,15 +133,21 @@ For locally running MCP servers that communicate via standard I/O:
 
 ```php
 'puppeteer' => [
-    'command' => ['npx', '-y', '@modelcontextprotocol/server-puppeteer'],
+    'command' => [
+      'npx',
+      '-y',
+      '@modelcontextprotocol/server-puppeteer',
+      '--options',
+      // Array values are passed as JSON encoded strings
+      [
+        'debug' => env('MCP_PUPPETEER_DEBUG', false)
+      ]
+    ],
     'timeout' => 30,
     'transport' => Transport::Stdio,
     'env' => [
         'NODE_ENV' => 'production',  // Set Node environment
         'MCP_SERVER_PORT' => '3001',  // Set a custom port for the server
-        'options' => [ // arrays are passed as JSON arguments
-          'debug' => 'mcp:*',
-        ],
     ],
 ],
 ```
