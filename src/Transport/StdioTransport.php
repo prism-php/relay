@@ -79,6 +79,19 @@ class StdioTransport implements Transport
         }
     }
 
+    public function command(): string
+    {
+        $parts = array_map(function (string|array $part): string {
+            if (is_array($part)) {
+                return addslashes(json_encode($part) ?: '');
+            }
+
+            return $part;
+        }, $this->config['command']);
+
+        return implode(' ', $parts);
+    }
+
     protected function validateConfig(): void
     {
         if (! isset($this->config['command']) || ! is_array($this->config['command'])) {
@@ -123,19 +136,6 @@ class StdioTransport implements Transport
     protected function env(): array
     {
         return $this->config['env'] ?? [];
-    }
-
-    protected function command(): string
-    {
-        $parts = array_map(function (string|array $part): string {
-            if (is_array($part)) {
-                return addslashes(json_encode($part) ?: '');
-            }
-
-            return $part;
-        }, $this->config['command']);
-
-        return implode(' ', $parts);
     }
 
     /**
