@@ -1,5 +1,17 @@
 ![](assets/relay-banner.webp)
 
+<p align="center">
+    <a href="https://packagist.org/packages/prism-php/relay">
+        <img src="https://poser.pugx.org/prism-php/relay/d/total.svg" alt="Total Downloads">
+    </a>
+    <a href="https://packagist.org/packages/prism-php/relay">
+        <img src="https://poser.pugx.org/prism-php/relay/v/stable.svg" alt="Latest Stable Version">
+    </a>
+    <a href="https://packagist.org/packages/prism-php/relay">
+        <img src="https://poser.pugx.org/prism-php/relay/license.svg" alt="License">
+    </a>
+</p>
+
 # Relay
 
 A seamless integration between [Prism](https://github.com/prism-php/prism) and Model Context Protocol (MCP) servers that empowers your AI applications with powerful, external tool capabilities.
