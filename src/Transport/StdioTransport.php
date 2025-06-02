@@ -81,13 +81,15 @@ class StdioTransport implements Transport
 
     public function command(): string
     {
+        $command = $this->config['command'];
+
         $parts = array_map(function (string|array $part): string {
             if (is_array($part)) {
                 return addslashes(json_encode($part) ?: '');
             }
 
             return $part;
-        }, $this->config['command']);
+        }, $command);
 
         return implode(' ', $parts);
     }
@@ -196,16 +198,29 @@ class StdioTransport implements Transport
             throw new TransportException('Input stream not initialized');
         }
 
+        // Send proper MCP initialize request instead of ping
         $this->requestId++;
-        $pingRequest = json_encode([
+        $initializeRequest = json_encode([
             'jsonrpc' => '2.0',
             'id' => (string) $this->requestId,
-            'method' => 'ping',
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2024-11-05',
+                'capabilities' => new \stdClass,
+            ],
         ]).PHP_EOL;
-        $this->inputStream->write($pingRequest);
 
-        // Reset the request ID as this was just a ping
-        $this->requestId--;
+        $this->inputStream->write($initializeRequest);
+
+        // Send initialized notification
+        $initializedNotification = json_encode([
+            'jsonrpc' => '2.0',
+            'method' => 'notifications/initialized',
+        ]).PHP_EOL;
+
+        $this->inputStream->write($initializedNotification);
+
+        // Don't reset the request ID - we expect a response to initialize
     }
 
     /**
@@ -246,6 +261,7 @@ class StdioTransport implements Transport
         }
 
         $jsonRequest = json_encode($requestPayload, JSON_UNESCAPED_SLASHES).PHP_EOL;
+
         $this->inputStream->write($jsonRequest);
         $this->process->clearErrorOutput();
         $this->process->clearOutput();

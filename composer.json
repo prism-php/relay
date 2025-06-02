@@ -4,7 +4,7 @@
   "type": "library",
   "require": {
     "php": "^8.3",
-    "prism-php/prism": ">=0.56 ^0",
+    "prism-php/prism": "dev-main",
     "laravel/framework": "^11.0|^12.0"
   },
   "require-dev": {

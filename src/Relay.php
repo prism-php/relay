@@ -178,8 +178,30 @@ class Relay
             return fn ($script = null): string => $this->callMCPTool($toolName, ['script' => $script]);
         }
 
-        // Default generic handler for any other tool
-        return fn ($parameters = []): string => $this->callMCPTool($toolName, $parameters);
+        // Default generic handler for any other tool - handle both individual params and array
+        return function (...$args) use ($toolName, $definition): string {
+            // Check if we have named parameters (associative array)
+            if ($args !== [] && array_keys($args) !== range(0, count($args) - 1)) {
+                // We have named parameters, use them directly
+                return $this->callMCPTool($toolName, $args);
+            }
+            // If first argument is an array, use it as parameters
+            if (count($args) === 1 && isset($args[0]) && is_array($args[0])) {
+                return $this->callMCPTool($toolName, $args[0]);
+            }
+
+            // Otherwise, map positional arguments to parameter names
+            $requiredParams = $this->getRequiredParameters($definition);
+            $parameters = [];
+
+            foreach ($requiredParams as $index => $paramName) {
+                if (isset($args[$index])) {
+                    $parameters[$paramName] = $args[$index];
+                }
+            }
+
+            return $this->callMCPTool($toolName, $parameters);
+        };
     }
 
     /**
@@ -319,7 +341,7 @@ class Relay
     }
 
     /**
-     * @param  array<string, mixed>|object|string  $parameters
+     * @param  array<string|int, mixed>|object|string  $parameters
      *
      * @throws ToolCallException
      */
@@ -350,7 +372,7 @@ class Relay
     }
 
     /**
-     * @param  array<string, mixed>|object|string  $parameters
+     * @param  array<string|int, mixed>|object|string  $parameters
      * @return array<string, mixed>
      */
     protected function normalizeParameters(string $baseToolName, $parameters): array
@@ -395,11 +417,13 @@ class Relay
         // MCP requires arguments to be an object, not an array
         $normalizedParamsObject = (object) $parameters;
 
-        // Call the tool using JSON-RPC format with correct MCP endpoint: tools/call
-        return $this->transport->sendRequest('tools/call', [
+        $requestParams = [
             'name' => $toolName,
             'arguments' => $normalizedParamsObject,
-        ]);
+        ];
+
+        // Call the tool using JSON-RPC format with correct MCP endpoint: tools/call
+        return $this->transport->sendRequest('tools/call', $requestParams);
     }
 
     /**
