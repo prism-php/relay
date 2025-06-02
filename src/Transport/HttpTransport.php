@@ -140,7 +140,7 @@ class HttpTransport implements Transport
         if (! isset($jsonResponse['jsonrpc']) ||
             $jsonResponse['jsonrpc'] !== '2.0' ||
             ! isset($jsonResponse['id']) ||
-            $jsonResponse['id'] !== (string) $this->requestId
+            (string) $jsonResponse['id'] !== (string) $this->requestId
         ) {
             throw new TransportException(
                 'Invalid JSON-RPC 2.0 response received'
