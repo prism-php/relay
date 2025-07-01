@@ -162,3 +162,21 @@ it('closes in destructor', function (): void {
     unset($transport);
     expect(true)->toBeTrue();
 });
+
+it('receives merged environment variables from config', function (): void {
+    $env = [
+        'CONFIG_VAR' => 'config_value',
+        'OVERRIDE_ME' => 'overridden_value',
+        'CUSTOM_VAR' => 'custom_value',
+    ];
+
+    $config = [
+        'command' => ['test', 'command'],
+        'env' => $env,
+        'timeout' => 30,
+    ];
+
+    $transport = new StdioTransportFake($config);
+
+    expect($transport->getEnvironment())->toBe($env);
+});

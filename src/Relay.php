@@ -23,11 +23,13 @@ class Relay
     protected Transport $transport;
 
     /**
+     * @param  array<string, mixed>  $environment
+     *
      * @throws ServerConfigurationException
      */
-    public function __construct(protected string $serverName)
+    public function __construct(protected string $serverName, array $environment = [])
     {
-        $this->resolveServerConfig();
+        $this->resolveServerConfig($environment);
         $this->initializeTransport();
     }
 
@@ -509,9 +511,11 @@ class Relay
     }
 
     /**
+     * @param  array<string, mixed>  $environment
+     *
      * @throws ServerConfigurationException
      */
-    protected function resolveServerConfig(): void
+    protected function resolveServerConfig(array $environment = []): void
     {
         if (function_exists('app') && app()->bound('config')) {
             $servers = config('relay.servers', []);
@@ -520,7 +524,9 @@ class Relay
                 throw new ServerConfigurationException("MCP server '{$this->serverName}' is not configured.");
             }
 
-            $this->serverConfig = $servers[$this->serverName];
+            $configEnvironment = $servers[$this->serverName]['env'] ?? [];
+
+            $this->serverConfig = [...$servers[$this->serverName], 'env' => [...$configEnvironment, ...$environment]];
         } else {
             // Fallback for testing
             $this->serverConfig = [

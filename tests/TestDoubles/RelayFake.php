@@ -20,6 +20,12 @@ class RelayFake extends Relay
 
     protected string $toolsExceptionMessage = 'Failed to fetch tools';
 
+    /** @return array<string, mixed>  */
+    public function getEnvironment(): array
+    {
+        return $this->serverConfig['env'] ?? [];
+    }
+
     /**
      * Sets a custom transport for testing purposes.
      *

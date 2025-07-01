@@ -16,6 +16,10 @@ beforeEach(function (): void {
     config()->set('relay.servers.'.$this->serverName, [
         'url' => 'http://example.com/api',
         'timeout' => 30,
+        'env' => [
+            'DEFAULT_VAR' => 'default_value',
+            'ANOTHER_VAR' => 'another_value',
+        ],
     ]);
 
     // Clear any cached tools
@@ -127,4 +131,52 @@ it('handles invalid tool definitions', function (): void {
     $tools = $relay->tools();
     expect($tools)->toBeArray()
         ->and($tools !== [])->toBeTrue();
+});
+
+it('accepts environment variables in constructor', function (): void {
+    $customEnv = [
+        'CUSTOM_VAR' => 'custom_value',
+        'OVERRIDE_VAR' => 'override_value',
+    ];
+
+    $relay = new RelayFake($this->serverName, $customEnv);
+    expect($relay->getServerName())->toBe($this->serverName);
+});
+
+it('merges environment variables with config environment', function (): void {
+    // Set up server config with default environment
+    config()->set('relay.servers.env_test_server', [
+        'url' => 'http://example.com/api',
+        'timeout' => 30,
+        'transport' => \Prism\Relay\Enums\Transport::Stdio,
+        'command' => ['test', 'command'],
+        'env' => [
+            'CONFIG_VAR' => 'config_value',
+            'OVERRIDE_ME' => 'original_value',
+        ],
+    ]);
+
+    $customEnv = [
+        'CUSTOM_VAR' => 'custom_value',
+        'OVERRIDE_ME' => 'overridden_value',
+    ];
+
+    $relay = new RelayFake('env_test_server', $customEnv);
+
+    // The merged environment should contain both config and custom vars
+    // with custom vars overriding config vars
+    expect($relay->getEnvironment())->toBe([
+        'CONFIG_VAR' => 'config_value',
+        'OVERRIDE_ME' => 'overridden_value',
+        'CUSTOM_VAR' => 'custom_value',
+    ]);
+});
+
+it('handles empty environment array', function (): void {
+    $relay = new RelayFake($this->serverName, []);
+    expect($relay->getServerName())->toBe($this->serverName);
+
+    // Should not throw any errors
+    $tools = $relay->tools();
+    expect($tools)->toBeArray();
 });

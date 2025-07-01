@@ -9,8 +9,8 @@ use Prism\Prism\Tool;
 use Prism\Relay\RelayFactory;
 
 /**
- * @method static RelayFactory make(string $serverName)
- * @method static array<int, Tool> tools(string $serverName)
+ * @method static RelayFactory make(string $serverName, array $environment = [])
+ * @method static array<int, Tool> tools(string $serverName, array $environment = [])
  *
  * @see RelayFactory
  */

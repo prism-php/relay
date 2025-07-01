@@ -165,4 +165,10 @@ class StdioTransportFake extends StdioTransport
 
         return $this;
     }
+
+    /** @return array<string, mixed>  */
+    public function getEnvironment(): array
+    {
+        return $this->config['env'] ?? [];
+    }
 }
