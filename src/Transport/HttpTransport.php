@@ -73,6 +73,7 @@ class HttpTransport implements Transport
     protected function sendHttpRequest(array $payload): Response
     {
         return Http::timeout($this->getTimeout())
+            ->acceptJson()
             ->when(
                 $this->hasApiKey(),
                 fn ($http) => $http->withToken($this->getApiKey())

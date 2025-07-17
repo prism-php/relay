@@ -183,3 +183,22 @@ it('can make requests to tools/call', function (): void {
 
     expect($result)->toBeArray();
 });
+
+it('sends requests with JSON Accept header', function (): void {
+    $transport = new HttpTransport([
+        'url' => 'http://example.com/api',
+        'timeout' => 30,
+    ]);
+
+    Http::fake([
+        'http://example.com/api' => Http::response([
+            'jsonrpc' => '2.0',
+            'id' => '1',
+            'result' => ['status' => 'success'],
+        ]),
+    ]);
+
+    $transport->sendRequest('test/method');
+
+    Http::assertSent(fn ($request) => $request->hasHeader('Accept', 'application/json'));
+});
