@@ -25,7 +25,7 @@ class Relay
     /**
      * @throws ServerConfigurationException
      */
-    public function __construct(protected string $serverName)
+    public function __construct(protected string $serverName, protected ?array $customConfig = null)
     {
         $this->resolveServerConfig();
         $this->initializeTransport();
@@ -513,6 +513,12 @@ class Relay
      */
     protected function resolveServerConfig(): void
     {
+        if ($this->customConfig !== null) {
+            $this->serverConfig = $this->customConfig;
+
+            return;
+        }
+
         if (function_exists('app') && app()->bound('config')) {
             $servers = config('relay.servers', []);
 
