@@ -23,6 +23,8 @@ class Relay
     protected Transport $transport;
 
     /**
+     * @param  array<string, mixed>|null  $customConfig
+     *
      * @throws ServerConfigurationException
      */
     public function __construct(protected string $serverName, protected ?array $customConfig = null)
