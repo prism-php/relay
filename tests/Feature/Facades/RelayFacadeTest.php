@@ -55,3 +55,57 @@ it('can get tools through the facade', function (): void {
         ->toBeArray()
         ->toHaveCount(2);
 });
+
+it('can make relay with custom config through facade', function (): void {
+    $customConfig = [
+        'transport' => \Prism\Relay\Enums\Transport::Http,
+        'url' => 'http://custom.example.com/api',
+        'timeout' => 45,
+    ];
+
+    $relay = Relay::make('custom_facade_server', $customConfig);
+
+    expect($relay)
+        ->toBeInstanceOf(RelayClass::class)
+        ->and($relay->getServerName())
+        ->toBe('custom_facade_server');
+});
+
+it('can get tools with custom config through facade', function (): void {
+    $customConfig = [
+        'transport' => \Prism\Relay\Enums\Transport::Http,
+        'url' => 'http://tools.example.com/api',
+        'timeout' => 30,
+    ];
+
+    // Mock the factory to test the facade call
+    $mock = $this->mock(RelayFactory::class);
+    $mock->shouldReceive('tools')
+        ->once()
+        ->with('custom_tools_server', $customConfig)
+        ->andReturn([
+            new \Prism\Prism\Tool,
+        ]);
+
+    app()->instance('relay', $mock);
+
+    $tools = Relay::tools('custom_tools_server', $customConfig);
+
+    expect($tools)
+        ->toBeArray()
+        ->toHaveCount(1);
+});
+
+it('facade make method works without config parameter', function (): void {
+    config()->set('relay.servers.standard_test', [
+        'url' => 'http://standard.example.com/api',
+        'timeout' => 30,
+    ]);
+
+    $relay = Relay::make('standard_test');
+
+    expect($relay)
+        ->toBeInstanceOf(RelayClass::class)
+        ->and($relay->getServerName())
+        ->toBe('standard_test');
+});
