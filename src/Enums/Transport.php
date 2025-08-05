@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Prism\Relay\Enums;
 
-enum Transport
+enum Transport: string
 {
-    case Http;
-    case Stdio;
+    case Http = 'http';
+    case Stdio = 'stdio';
 }
