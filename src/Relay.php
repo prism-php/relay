@@ -325,7 +325,11 @@ class Relay
     {
         $parameters = [];
         foreach ($properties as $name => $property) {
-            $parameters[] = $this->getSchemeParameter($name, $property, $definitionName);
+
+            $parameter = $this->getSchemeParameter($name, $property, $definitionName);
+            if ($parameter instanceof Schema) {
+                $parameters[] = $parameter;
+            }
         }
 
         return $parameters;
@@ -336,10 +340,15 @@ class Relay
      *
      * @throws RelayException
      */
-    protected function getSchemeParameter(string $name, array $property, string $definitionName): Schema
+    protected function getSchemeParameter(string $name, array $property, string $definitionName): Schema|null
     {
+        if ($property === []) {
+            return null;
+        }
+
         $type = data_get($property, 'type');
         $description = $this->getParameterDescription($name, $property, $definitionName);
+        $itemsSchema = $this->getSchemeParameter('', data_get($property, 'items', []), $definitionName);
 
         return match ($type) {
             'string' => new StringSchema($name, $description),
@@ -347,8 +356,8 @@ class Relay
             'boolean' => new BooleanSchema($name, $description),
             'enum' => new EnumSchema($name, $description, data_get($property, 'options', [])),
             'object' => new ObjectSchema($name, $description, $this->getSchemeParameters(data_get($property, 'properties', []), $definitionName), data_get($property, 'required', []), data_get($property, 'allowAdditionalProperties', false)),
-            'array' => new ArraySchema($name, $description, $this->getSchemeParameter('', data_get($property, 'items', []), $definitionName)),
-            default => throw new RelayException("Unknown type {$type} for {$name} in {$definitionName}"),
+            'array' => $itemsSchema instanceof Schema ? new ArraySchema($name, $description, $itemsSchema) : null,
+            default => null,
         };
     }
 
