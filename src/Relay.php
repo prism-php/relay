@@ -5,8 +5,16 @@ declare(strict_types=1);
 namespace Prism\Relay;
 
 use Illuminate\Support\Facades\Cache;
+use Prism\Prism\Contracts\Schema;
+use Prism\Prism\Schema\ArraySchema;
+use Prism\Prism\Schema\BooleanSchema;
+use Prism\Prism\Schema\EnumSchema;
+use Prism\Prism\Schema\NumberSchema;
+use Prism\Prism\Schema\ObjectSchema;
+use Prism\Prism\Schema\StringSchema;
 use Prism\Prism\Tool;
 use Prism\Relay\Enums\Transport as EnumsTransport;
+use Prism\Relay\Exceptions\RelayException;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\ToolCallException;
 use Prism\Relay\Exceptions\ToolDefinitionException;
@@ -248,7 +256,7 @@ class Relay
         $required = data_get($definition, 'inputSchema.required', []);
 
         return isset($properties['selector']) && isset($properties['value']) &&
-               count($required) === 2 && in_array('selector', $required) && in_array('value', $required);
+            count($required) === 2 && in_array('selector', $required) && in_array('value', $required);
     }
 
     /**
@@ -287,6 +295,8 @@ class Relay
 
     /**
      * @param  array<string, mixed>  $definition
+     *
+     * @throws RelayException
      */
     protected function addParametersToTool(Tool $tool, array $definition): void
     {
@@ -296,26 +306,65 @@ class Relay
             return;
         }
 
+        $definitionName = data_get($definition, 'name', 'unknown');
         $requiredParams = data_get($definition, 'inputSchema.required', []);
 
-        foreach ($properties as $name => $property) {
-            $type = data_get($property, 'type');
-            if (empty($type)) {
-                continue;
-            }
-
-            $description = $this->getParameterDescription($name, $property, $definition);
-            $required = in_array($name, $requiredParams);
-
-            $this->addParameter($tool, $name, $type, $description, $required);
+        foreach ($this->getSchemeParameters($properties, $definitionName) as $parameter) {
+            $required = in_array($parameter->name(), $requiredParams);
+            $tool->withParameter($parameter, $required);
         }
     }
 
     /**
-     * @param  array<string, mixed>  $property
-     * @param  array<string, mixed>  $definition
+     * @param  array<string, mixed>  $properties
+     * @return array<int, Schema>
+     *
+     * @throws RelayException
      */
-    protected function getParameterDescription(string $name, array $property, array $definition): string
+    protected function getSchemeParameters(array $properties, string $definitionName): array
+    {
+        $parameters = [];
+        foreach ($properties as $name => $property) {
+
+            $parameter = $this->getSchemeParameter($name, $property, $definitionName);
+            if ($parameter instanceof Schema) {
+                $parameters[] = $parameter;
+            }
+        }
+
+        return $parameters;
+    }
+
+    /**
+     * @param  array<string, mixed>  $property
+     *
+     * @throws RelayException
+     */
+    protected function getSchemeParameter(string $name, array $property, string $definitionName): Schema|null
+    {
+        if ($property === []) {
+            return null;
+        }
+
+        $type = data_get($property, 'type');
+        $description = $this->getParameterDescription($name, $property, $definitionName);
+        $itemsSchema = $this->getSchemeParameter('', data_get($property, 'items', []), $definitionName);
+
+        return match ($type) {
+            'string' => new StringSchema($name, $description),
+            'number', 'integer' => new NumberSchema($name, $description),
+            'boolean' => new BooleanSchema($name, $description),
+            'enum' => new EnumSchema($name, $description, data_get($property, 'options', [])),
+            'object' => new ObjectSchema($name, $description, $this->getSchemeParameters(data_get($property, 'properties', []), $definitionName), data_get($property, 'required', []), data_get($property, 'allowAdditionalProperties', false)),
+            'array' => $itemsSchema instanceof Schema ? new ArraySchema($name, $description, $itemsSchema) : null,
+            default => null,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $property
+     */
+    protected function getParameterDescription(string $name, array $property, string $definitionName): string
     {
         $description = data_get($property, 'description');
 
@@ -327,19 +376,7 @@ class Relay
             return 'URL to navigate to';
         }
 
-        $toolName = data_get($definition, 'name', 'unknown');
-
-        return "Parameter {$name} for {$toolName}";
-    }
-
-    protected function addParameter(Tool $tool, string $name, string $type, string $description, bool $required): void
-    {
-        match ($type) {
-            'string' => $tool->withStringParameter($name, $description, $required),
-            'number', 'integer' => $tool->withNumberParameter($name, $description, $required),
-            'boolean' => $tool->withBooleanParameter($name, $description, $required),
-            default => $tool->withStringParameter($name, $description, $required),
-        };
+        return "Parameter {$name} for {$definitionName}";
     }
 
     /**
@@ -407,7 +444,7 @@ class Relay
     protected function isUrlParameter(string $toolName, string $parameter): bool
     {
         return (filter_var($parameter, FILTER_VALIDATE_URL) !== false) &&
-               (str_starts_with($parameter, 'http://') || str_starts_with($parameter, 'https://'));
+            (str_starts_with($parameter, 'http://') || str_starts_with($parameter, 'https://'));
     }
 
     /**
