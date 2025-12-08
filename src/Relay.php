@@ -6,6 +6,7 @@ namespace Prism\Relay;
 
 use Illuminate\Support\Facades\Cache;
 use Prism\Prism\Contracts\Schema;
+use Prism\Prism\Schema\AnyOfSchema;
 use Prism\Prism\Schema\ArraySchema;
 use Prism\Prism\Schema\BooleanSchema;
 use Prism\Prism\Schema\EnumSchema;
@@ -326,7 +327,7 @@ class Relay
         $parameters = [];
         foreach ($properties as $name => $property) {
 
-            $parameter = $this->getSchemeParameter($name, $property, $definitionName);
+            $parameter = $this->getSchemeParameter((string) $name, $property, $definitionName);
             if ($parameter instanceof Schema) {
                 $parameters[] = $parameter;
             }
@@ -348,6 +349,14 @@ class Relay
 
         $type = data_get($property, 'type');
         $description = $this->getParameterDescription($name, $property, $definitionName);
+
+        if ($type === null && isset($property['anyOf'])) {
+            $type = 'anyOf';
+            $itemsSchema = $this->getSchemeParameters(data_get($property, 'anyOf', []), $definitionName);
+
+            return new AnyOfSchema($itemsSchema, $name, $description);
+        }
+
         $itemsSchema = $this->getSchemeParameter('', data_get($property, 'items', []), $definitionName);
 
         return match ($type) {

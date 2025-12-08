@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use Illuminate\Support\Facades\Cache;
+use Prism\Prism\Schema\AnyOfSchema;
 use Prism\Prism\Tool;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\ToolDefinitionException;
@@ -86,7 +87,7 @@ it('creates different tool handlers based on inputSchema', function (): void {
     $tools = $relay->tools();
 
     // Test we have the tools we expect
-    expect($tools)->toHaveCount(6);
+    expect($tools)->toHaveCount(7);
 });
 
 it('handles different parameter types correctly in tools', function (): void {
@@ -127,4 +128,30 @@ it('handles invalid tool definitions', function (): void {
     $tools = $relay->tools();
     expect($tools)->toBeArray()
         ->and($tools !== [])->toBeTrue();
+});
+
+it('supports mapping any of schemas', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    // Call tools() to create handlers
+    $tools = $relay->tools();
+
+    $tool = $tools[6];
+    $anyOf = $tool->parameters()['nameOrId'];
+
+    expect($anyOf)
+        ->toBeInstanceOf(AnyOfSchema::class)
+        ->and($anyOf->toArray())->toBe([
+            'anyOf' => [
+                [
+                    'description' => 'Name',
+                    'type' => 'string',
+                ],
+                [
+                    'description' => 'ID',
+                    'type' => 'number',
+                ],
+            ],
+            'description' => 'Parameter nameOrId for union_tool',
+        ]);
 });
