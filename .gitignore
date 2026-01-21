@@ -10,4 +10,4 @@ phpunit.xml
 .vscode
 ray.php
 
-**/CLAUDE.local.md
+.claude/
