@@ -107,6 +107,9 @@ class HttpTransport implements Transport
         return (string) ($this->config['api_key'] ?? '');
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function getHeaders(): array
     {
         return $this->config['headers'] ?? [];
