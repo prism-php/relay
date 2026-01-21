@@ -340,7 +340,7 @@ class Relay
      *
      * @throws RelayException
      */
-    protected function getSchemeParameter(string $name, array $property, string $definitionName): Schema|null
+    protected function getSchemeParameter(string $name, array $property, string $definitionName): ?Schema
     {
         if ($property === []) {
             return null;
