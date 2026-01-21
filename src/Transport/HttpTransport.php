@@ -78,6 +78,10 @@ class HttpTransport implements Transport
                 $this->hasApiKey(),
                 fn ($http) => $http->withToken($this->getApiKey())
             )
+            ->when(
+                $this->hasHeaders(),
+                fn ($http) => $http->withHeaders($this->getHeaders())
+            )
             ->post($this->getServerUrl(), $payload);
     }
 
@@ -91,9 +95,21 @@ class HttpTransport implements Transport
         return isset($this->config['api_key']) && $this->config['api_key'] !== null;
     }
 
+    protected function hasHeaders(): bool
+    {
+        return isset($this->config['headers'])
+            && is_array($this->config['headers'])
+            && ! empty($this->config['headers']);
+    }
+
     protected function getApiKey(): string
     {
         return (string) ($this->config['api_key'] ?? '');
+    }
+
+    protected function getHeaders(): array
+    {
+        return $this->config['headers'] ?? [];
     }
 
     protected function getServerUrl(): string

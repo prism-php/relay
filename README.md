@@ -136,6 +136,9 @@ For MCP servers that communicate over HTTP:
     'api_key' => env('RELAY_GITHUB_SERVER_API_KEY'),
     'timeout' => 30,
     'transport' => Transport::Http,
+    'headers' => [
+        'User-Agent' => 'prism-php-relay/1.0',
+    ]
 ],
 ```
 
