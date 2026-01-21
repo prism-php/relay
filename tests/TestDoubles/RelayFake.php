@@ -182,6 +182,28 @@ class RelayFake extends Relay
                     'required' => ['script'],
                 ],
             ],
+            [
+                'name' => 'union_tool',
+                'description' => 'A tool with union parameter',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'nameOrId' => [
+                            'anyOf' => [
+                                [
+                                    'type' => 'string',
+                                    'description' => 'Name',
+                                ],
+                                [
+                                    'type' => 'number',
+                                    'description' => 'ID',
+                                ],
+                            ],
+                        ],
+                    ],
+                    'required' => ['nameOrId'],
+                ],
+            ],
         ];
     }
 
