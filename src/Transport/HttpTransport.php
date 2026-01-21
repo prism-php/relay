@@ -99,7 +99,7 @@ class HttpTransport implements Transport
     {
         return isset($this->config['headers'])
             && is_array($this->config['headers'])
-            && ! empty($this->config['headers']);
+            && (isset($this->config['headers']) && $this->config['headers'] !== []);
     }
 
     protected function getApiKey(): string
