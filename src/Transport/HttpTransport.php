@@ -12,6 +12,10 @@ class HttpTransport implements Transport
 {
     protected int $requestId = 0;
 
+    protected bool $started = false;
+
+    protected ?string $sessionId = null;
+
     /**
      * @param  array<string, mixed>  $config
      */
@@ -20,7 +24,49 @@ class HttpTransport implements Transport
     ) {}
 
     #[\Override]
-    public function start(): void {}
+    public function start(): void
+    {
+        if ($this->started) {
+            return;
+        }
+
+        $this->requestId++;
+
+        $initializePayload = [
+            'jsonrpc' => '2.0',
+            'id' => (string) $this->requestId,
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2025-03-26',
+                'capabilities' => new \stdClass,
+                'clientInfo' => [
+                    'name' => 'prism-relay',
+                    'version' => '1.0.0',
+                ],
+            ],
+        ];
+
+        $initializeResponse = $this->sendHttpRequest($initializePayload);
+        $this->validateHttpResponse($initializeResponse);
+        $this->sessionId = $initializeResponse->header('Mcp-Session-Id');
+
+        $initializeJson = $this->parseJsonRpcResponse($initializeResponse);
+        $this->validateJsonRpcResponse($initializeJson);
+
+        if (isset($initializeJson['error'])) {
+            $this->handleJsonRpcError($initializeJson['error']);
+        }
+
+        $initializedNotification = [
+            'jsonrpc' => '2.0',
+            'method' => 'notifications/initialized',
+        ];
+
+        $notificationResponse = $this->sendHttpRequest($initializedNotification);
+        $this->validateHttpResponse($notificationResponse);
+
+        $this->started = true;
+    }
 
     /**
      * @param  array<string, mixed>  $params
@@ -31,6 +77,8 @@ class HttpTransport implements Transport
     #[\Override]
     public function sendRequest(string $method, array $params = []): array
     {
+        $this->start();
+
         $this->requestId++;
         $requestPayload = $this->createRequestPayload($method, $params);
 
@@ -63,7 +111,8 @@ class HttpTransport implements Transport
             'jsonrpc' => '2.0',
             'id' => (string) $this->requestId,
             'method' => $method,
-            'params' => $params,
+            // Some MCP HTTP servers require params to be an object, not an array.
+            'params' => $params === [] ? new \stdClass : $params,
         ];
     }
 
@@ -72,15 +121,20 @@ class HttpTransport implements Transport
      */
     protected function sendHttpRequest(array $payload): Response
     {
+        $headers = array_merge([
+            // MCP Streamable HTTP requires both content types to be accepted.
+            'Accept' => 'application/json, text/event-stream',
+        ], $this->getHeaders());
+
+        if ($this->sessionId) {
+            $headers['Mcp-Session-Id'] = $this->sessionId;
+        }
+
         return Http::timeout($this->getTimeout())
-            ->acceptJson()
+            ->withHeaders($headers)
             ->when(
                 $this->hasApiKey(),
                 fn ($http) => $http->withToken($this->getApiKey())
-            )
-            ->when(
-                $this->hasHeaders(),
-                fn ($http) => $http->withHeaders($this->getHeaders())
             )
             ->post($this->getServerUrl(), $payload);
     }
@@ -128,7 +182,7 @@ class HttpTransport implements Transport
     protected function processResponse(Response $response): array
     {
         $this->validateHttpResponse($response);
-        $jsonResponse = $response->json();
+        $jsonResponse = $this->parseJsonRpcResponse($response);
         $this->validateJsonRpcResponse($jsonResponse);
 
         if (isset($jsonResponse['error'])) {
@@ -136,6 +190,84 @@ class HttpTransport implements Transport
         }
 
         return $jsonResponse['result'] ?? [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws TransportException
+     */
+    protected function parseJsonRpcResponse(Response $response): array
+    {
+        $contentType = strtolower($response->header('Content-Type'));
+
+        if (str_contains($contentType, 'text/event-stream')) {
+            return $this->parseSseJsonRpcResponse($response->body());
+        }
+
+        $json = $response->json();
+
+        if (! is_array($json)) {
+            throw new TransportException('Invalid JSON response received from MCP server');
+        }
+
+        return $json;
+    }
+
+    /**
+     * Parse JSON-RPC payload from an SSE response body.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws TransportException
+     */
+    protected function parseSseJsonRpcResponse(string $body): array
+    {
+        $lines = preg_split("/\r\n|\n|\r/", $body) ?: [];
+        $dataLines = [];
+        $messages = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                if ($dataLines !== []) {
+                    $decoded = json_decode(implode("\n", $dataLines), true);
+
+                    if (is_array($decoded) && isset($decoded['jsonrpc'])) {
+                        $messages[] = $decoded;
+                    }
+
+                    $dataLines = [];
+                }
+
+                continue;
+            }
+
+            if (str_starts_with($line, 'data:')) {
+                $dataLines[] = ltrim(substr($line, 5));
+            }
+        }
+
+        if ($dataLines !== []) {
+            $decoded = json_decode(implode("\n", $dataLines), true);
+
+            if (is_array($decoded) && isset($decoded['jsonrpc'])) {
+                $messages[] = $decoded;
+            }
+        }
+
+        if ($messages === []) {
+            throw new TransportException('No JSON-RPC message found in SSE response');
+        }
+
+        foreach ($messages as $message) {
+            if (isset($message['id']) && (string) $message['id'] === (string) $this->requestId) {
+                return $message;
+            }
+        }
+
+        return end($messages) ?: [];
     }
 
     /**
