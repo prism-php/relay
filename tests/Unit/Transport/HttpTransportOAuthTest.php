@@ -10,11 +10,10 @@ use Tests\TestDoubles\HttpTransportFake;
 
 it('sends access_token as Bearer Authorization header', function (): void {
     Http::fake([
-        'http://example.com/api' => Http::response([
-            'jsonrpc' => '2.0',
-            'id' => '1',
-            'result' => ['status' => 'success'],
-        ]),
+        'http://example.com/api' => Http::sequence()
+            ->push(['jsonrpc' => '2.0', 'id' => '1', 'result' => ['protocolVersion' => '2025-03-26']])
+            ->push('', 202)
+            ->push(['jsonrpc' => '2.0', 'id' => '2', 'result' => ['status' => 'success']]),
     ]);
 
     $transport = new HttpTransport([
@@ -30,11 +29,10 @@ it('sends access_token as Bearer Authorization header', function (): void {
 
 it('uses access_token over api_key when both are present', function (): void {
     Http::fake([
-        'http://example.com/api' => Http::response([
-            'jsonrpc' => '2.0',
-            'id' => '1',
-            'result' => ['status' => 'success'],
-        ]),
+        'http://example.com/api' => Http::sequence()
+            ->push(['jsonrpc' => '2.0', 'id' => '1', 'result' => ['protocolVersion' => '2025-03-26']])
+            ->push('', 202)
+            ->push(['jsonrpc' => '2.0', 'id' => '2', 'result' => ['status' => 'success']]),
     ]);
 
     $transport = new HttpTransport([
@@ -51,11 +49,10 @@ it('uses access_token over api_key when both are present', function (): void {
 
 it('falls back to api_key when no access_token is set', function (): void {
     Http::fake([
-        'http://example.com/api' => Http::response([
-            'jsonrpc' => '2.0',
-            'id' => '1',
-            'result' => ['status' => 'success'],
-        ]),
+        'http://example.com/api' => Http::sequence()
+            ->push(['jsonrpc' => '2.0', 'id' => '1', 'result' => ['protocolVersion' => '2025-03-26']])
+            ->push('', 202)
+            ->push(['jsonrpc' => '2.0', 'id' => '2', 'result' => ['status' => 'success']]),
     ]);
 
     $transport = new HttpTransport([
