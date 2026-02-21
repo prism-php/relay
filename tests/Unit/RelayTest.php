@@ -126,6 +126,26 @@ it('runtime format() overrides config tool_format', function (): void {
     expect($tools[0])->toBeInstanceOf(\Laravel\Ai\Contracts\Tool::class);
 });
 
+it('extractBaseToolName strips the relay namespace prefix', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    expect($relay->extractBaseToolNamePublic("relay__{$this->serverName}__test_tool"))
+        ->toBe('test_tool');
+});
+
+it('extractBaseToolName handles tool names that contain double underscores', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    expect($relay->extractBaseToolNamePublic("relay__{$this->serverName}__my__complex__tool"))
+        ->toBe('my__complex__tool');
+});
+
+it('extractBaseToolName passes through names that do not match the prefix', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    expect($relay->extractBaseToolNamePublic('plain_tool_name'))->toBe('plain_tool_name');
+});
+
 it('supports mapping any of schemas', function (): void {
     $relay = new RelayFake($this->serverName);
     $tools = $relay->tools();

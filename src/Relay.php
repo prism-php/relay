@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Prism\Relay;
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Prism\Prism\Contracts\Schema;
 use Prism\Prism\Schema\AnyOfSchema;
 use Prism\Prism\Schema\ArraySchema;
@@ -248,15 +249,23 @@ class Relay
 
         if ($type === null && isset($property['anyOf'])) {
             // The Laravel AI SDK does not support union types; fall back to string.
+            Log::warning('Relay: anyOf union type is not supported by the Laravel AI SDK; falling back to string.', [
+                'server' => $this->serverName,
+                'property' => $property,
+            ]);
+
             return $schema->string();
         }
 
         return match ($type) {
-            'string' => $schema->string(),
+            // In JSON Schema, enum values are a validation constraint on a type, not a type themselves.
+            // A string property with enum looks like {"type": "string", "enum": ["a", "b"]}.
+            'string' => isset($property['enum'])
+                ? $schema->string()->enum($property['enum'])
+                : $schema->string(),
             'number' => $schema->number(),
             'integer' => $schema->integer(),
             'boolean' => $schema->boolean(),
-            'enum' => $schema->string()->enum($property['options'] ?? $property['enum'] ?? []),
             'array' => $this->buildLaravelArrayType($schema, $property),
             'object' => $this->buildLaravelObjectType($schema, $property),
             default => null,
@@ -570,11 +579,10 @@ class Relay
 
     protected function extractBaseToolName(string $toolName): string
     {
-        if (str_starts_with($toolName, 'relay__')) {
-            $parts = explode('__', $toolName);
-            if (count($parts) >= 3) {
-                return end($parts);
-            }
+        $prefix = "relay__{$this->serverName}__";
+
+        if (str_starts_with($toolName, $prefix)) {
+            return substr($toolName, strlen($prefix));
         }
 
         return $toolName;
@@ -682,7 +690,7 @@ class Relay
         if (is_array($response) || is_object($response)) {
             $json = json_encode($response, JSON_PRETTY_PRINT);
 
-            return $json !== false ? $json : 'Tool executed successfully';
+            return $json !== false ? $json : 'Tool returned an unserializable result';
         }
 
         return 'Tool executed successfully';
