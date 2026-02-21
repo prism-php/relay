@@ -237,6 +237,40 @@ it('builds schema with enum constraint on a string type', function (): void {
         ->and($statusArray['enum'])->toBe(['active', 'inactive', 'pending']);
 });
 
+it('preserves required flags for nested object properties', function (): void {
+    $relay = new RelayFake($this->serverName);
+    $relay->setToolDefinitions([[
+        'name' => 'nested_tool',
+        'description' => 'A tool with a nested object',
+        'inputSchema' => [
+            'type' => 'object',
+            'properties' => [
+                'config' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'host' => ['type' => 'string', 'description' => 'Host'],
+                        'port' => ['type' => 'integer', 'description' => 'Port'],
+                        'debug' => ['type' => 'boolean', 'description' => 'Debug flag'],
+                    ],
+                    'required' => ['host', 'port'],
+                ],
+            ],
+            'required' => ['config'],
+        ],
+    ]]);
+
+    $tools = $relay->format(ToolFormat::AI_SDK)->tools();
+    $schema = new \Illuminate\JsonSchema\JsonSchemaTypeFactory;
+    $params = $tools[0]->schema($schema);
+
+    $configArray = $params['config']->toArray();
+
+    expect($configArray)->toHaveKey('required')
+        ->and($configArray['required'])->toContain('host')
+        ->and($configArray['required'])->toContain('port')
+        ->and($configArray['required'])->not->toContain('debug');
+});
+
 it('handle() calls the transport with the base tool name, not the namespaced name', function (): void {
     $fakeTransport = new FakeTransport;
     $fakeTransport->addResponse('tools/call', ['content' => [['type' => 'text', 'text' => 'ok']]]);

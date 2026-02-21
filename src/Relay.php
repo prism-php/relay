@@ -296,10 +296,14 @@ class Relay
     protected function buildLaravelObjectType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property): \Illuminate\JsonSchema\Types\ObjectType
     {
         $nestedProperties = [];
+        $nestedRequired = data_get($property, 'required', []);
 
         foreach (data_get($property, 'properties', []) as $propName => $propDef) {
             $propType = $this->buildLaravelTypeFromProperty($schema, $propDef);
             if ($propType instanceof \Illuminate\JsonSchema\Types\Type) {
+                if (in_array($propName, $nestedRequired)) {
+                    $propType = $propType->required();
+                }
                 $nestedProperties[$propName] = $propType;
             }
         }
