@@ -14,6 +14,7 @@ use Prism\Prism\Schema\NumberSchema;
 use Prism\Prism\Schema\ObjectSchema;
 use Prism\Prism\Schema\StringSchema;
 use Prism\Prism\Tool;
+use Prism\Relay\Enums\ToolFormat;
 use Prism\Relay\Enums\Transport as EnumsTransport;
 use Prism\Relay\Exceptions\RelayException;
 use Prism\Relay\Exceptions\ServerConfigurationException;
@@ -31,6 +32,8 @@ class Relay
 
     protected Transport $transport;
 
+    protected ?ToolFormat $runtimeFormat = null;
+
     /**
      * @param  array<string, mixed>|null  $customConfig
      *
@@ -47,16 +50,41 @@ class Relay
         return $this->serverName;
     }
 
+    public function format(ToolFormat $format): static
+    {
+        $this->runtimeFormat = $format;
+
+        return $this;
+    }
+
     /**
-     * @return array<int, Tool>
+     * @return array<int, Tool|\Laravel\Ai\Contracts\Tool>
      *
      * @throws ToolDefinitionException
      */
     public function tools(): array
     {
+        $format = $this->runtimeFormat ?? config('relay.tool_format', ToolFormat::RELAY);
+
+        if ($format === ToolFormat::AI_SDK) {
+            return $this->laravelTools();
+        }
+
         $toolDefinitions = $this->fetchToolDefinitions();
 
         return $this->createToolsFromDefinitions($toolDefinitions);
+    }
+
+    /**
+     * @return array<int, \Laravel\Ai\Contracts\Tool>
+     *
+     * @throws ToolDefinitionException
+     */
+    protected function laravelTools(): array
+    {
+        $toolDefinitions = $this->fetchToolDefinitions();
+
+        return $this->createLaravelToolsFromDefinitions($toolDefinitions);
     }
 
     /**
@@ -98,17 +126,11 @@ class Relay
      */
     protected function parseToolsResult(array $toolsResult): array
     {
-        $tools = data_get($toolsResult, 'tools');
-
-        if (is_array($tools)) {
-            return $tools;
-        }
-
         if (! isset($toolsResult['tools'])) {
             return array_values($toolsResult);
         }
 
-        return [];
+        return is_array($toolsResult['tools']) ? $toolsResult['tools'] : [];
     }
 
     /**
@@ -131,6 +153,158 @@ class Relay
         }
 
         return $tools;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $toolDefinitions
+     * @return array<int, \Laravel\Ai\Contracts\Tool>
+     */
+    protected function createLaravelToolsFromDefinitions(array $toolDefinitions): array
+    {
+        $tools = [];
+
+        foreach ($toolDefinitions as $definition) {
+            if (! $this->isValidToolDefinition($definition)) {
+                continue;
+            }
+
+            $toolName = "relay__{$this->serverName}__{$definition['name']}";
+            $toolDescription = $definition['description'];
+
+            $handler = fn (string $name, array $params): string => $this->callMCPTool($name, $params);
+            $schemaFn = fn (\Illuminate\Contracts\JsonSchema\JsonSchema $schema): array => $this->buildLaravelSchemaArray($schema, $definition);
+
+            $tools[] = new class($toolName, $toolDescription, $handler, $schemaFn) implements \Laravel\Ai\Contracts\Tool
+            {
+                public function __construct(
+                    private readonly string $toolName,
+                    private readonly string $toolDescription,
+                    private readonly \Closure $handler,
+                    private readonly \Closure $schemaFn,
+                ) {}
+
+                public function name(): string
+                {
+                    return $this->toolName;
+                }
+
+                public function description(): string
+                {
+                    return $this->toolDescription;
+                }
+
+                /**
+                 * @return array<string, \Illuminate\JsonSchema\Types\Type>
+                 */
+                public function schema(\Illuminate\Contracts\JsonSchema\JsonSchema $schema): array
+                {
+                    return ($this->schemaFn)($schema);
+                }
+
+                public function handle(\Laravel\Ai\Tools\Request $request): string
+                {
+                    return ($this->handler)($this->toolName, $request->all());
+                }
+            };
+        }
+
+        return $tools;
+    }
+
+    /**
+     * @param  array<string, mixed>  $definition
+     * @return array<string, \Illuminate\JsonSchema\Types\Type>
+     */
+    protected function buildLaravelSchemaArray(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $definition): array
+    {
+        $properties = data_get($definition, 'inputSchema.properties', []);
+        $required = data_get($definition, 'inputSchema.required', []);
+        $result = [];
+
+        foreach ($properties as $name => $property) {
+            $type = $this->buildLaravelTypeFromProperty($schema, (string) $name, $property, (string) data_get($definition, 'name', 'unknown'));
+            if (!$type instanceof \Illuminate\JsonSchema\Types\Type) {
+                continue;
+            }
+
+            $type = $type->description($this->getParameterDescription((string) $name, $property, (string) data_get($definition, 'name', 'unknown')));
+
+            if (in_array($name, $required)) {
+                $type = $type->required();
+            }
+
+            $result[$name] = $type;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $property
+     */
+    protected function buildLaravelTypeFromProperty(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, string $name, array $property, string $definitionName): ?\Illuminate\JsonSchema\Types\Type
+    {
+        if ($property === []) {
+            return null;
+        }
+
+        $type = $property['type'] ?? null;
+
+        if ($type === null && isset($property['anyOf'])) {
+            return $schema->string();
+        }
+
+        return match ($type) {
+            'string' => $schema->string(),
+            'number' => $schema->number(),
+            'integer' => $schema->integer(),
+            'boolean' => $schema->boolean(),
+            'enum' => $schema->string()->enum($property['options'] ?? $property['enum'] ?? []),
+            'array' => $this->buildLaravelArrayType($schema, $property, $definitionName),
+            'object' => $this->buildLaravelObjectType($schema, $property, $definitionName),
+            default => null,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $property
+     */
+    protected function buildLaravelArrayType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property, string $definitionName): \Illuminate\JsonSchema\Types\ArrayType
+    {
+        $arrayType = $schema->array();
+
+        $items = data_get($property, 'items', []);
+        if ($items !== []) {
+            $itemType = $this->buildLaravelTypeFromProperty($schema, '', $items, $definitionName);
+            if ($itemType instanceof \Illuminate\JsonSchema\Types\Type) {
+                $arrayType->items($itemType);
+            }
+        }
+
+        return $arrayType;
+    }
+
+    /**
+     * @param  array<string, mixed>  $property
+     */
+    protected function buildLaravelObjectType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property, string $definitionName): \Illuminate\JsonSchema\Types\ObjectType
+    {
+        $nestedProperties = [];
+
+        foreach (data_get($property, 'properties', []) as $propName => $propDef) {
+            $propType = $this->buildLaravelTypeFromProperty($schema, (string) $propName, $propDef, $definitionName);
+            if ($propType instanceof \Illuminate\JsonSchema\Types\Type) {
+                $nestedProperties[$propName] = $propType;
+            }
+        }
+
+        $objectType = $schema->object($nestedProperties);
+
+        if (data_get($property, 'allowAdditionalProperties', true) === false) {
+            $objectType->withoutAdditionalProperties();
+        }
+
+        return $objectType;
     }
 
     /**
@@ -163,9 +337,6 @@ class Relay
      */
     protected function createHandlerFunction(string $toolName, array $definition): callable
     {
-        $this->getRequiredParameters($definition);
-
-        // Check for specific tool types based on required parameters and create specialized handlers
         if ($this->isUrlBasedTool($definition)) {
             return fn ($url = null): string => $this->callMCPTool($toolName, ['url' => $url]);
         }
@@ -189,19 +360,15 @@ class Relay
             return fn ($script = null): string => $this->callMCPTool($toolName, ['script' => $script]);
         }
 
-        // Default generic handler for any other tool - handle both individual params and array
         return function (...$args) use ($toolName, $definition): string {
-            // Check if we have named parameters (associative array)
             if ($args !== [] && array_keys($args) !== range(0, count($args) - 1)) {
-                // We have named parameters, use them directly
                 return $this->callMCPTool($toolName, $args);
             }
-            // If first argument is an array, use it as parameters
+
             if (count($args) === 1 && isset($args[0]) && is_array($args[0])) {
                 return $this->callMCPTool($toolName, $args[0]);
             }
 
-            // Otherwise, map positional arguments to parameter names
             $requiredParams = $this->getRequiredParameters($definition);
             $parameters = [];
 
@@ -326,7 +493,6 @@ class Relay
     {
         $parameters = [];
         foreach ($properties as $name => $property) {
-
             $parameter = $this->getSchemeParameter((string) $name, $property, $definitionName);
             if ($parameter instanceof Schema) {
                 $parameters[] = $parameter;
@@ -389,15 +555,13 @@ class Relay
     }
 
     /**
-     * @param  array<string|int, mixed>|object|string  $parameters
-     *
      * @throws ToolCallException
      */
-    protected function callMCPTool(string $toolName, $parameters): string
+    protected function callMCPTool(string $toolName, mixed $parameters): string
     {
         try {
             $baseToolName = $this->extractBaseToolName($toolName);
-            $normalizedParams = $this->normalizeParameters($baseToolName, $parameters);
+            $normalizedParams = $this->normalizeParameters($parameters);
 
             $result = $this->executeMCPToolCall($baseToolName, $normalizedParams);
 
@@ -420,37 +584,28 @@ class Relay
     }
 
     /**
-     * @param  array<string|int, mixed>|object|string  $parameters
      * @return array<string, mixed>
      */
-    protected function normalizeParameters(string $baseToolName, $parameters): array
+    protected function normalizeParameters(mixed $parameters): array
     {
-        // If the parameter is a string, convert it to a default parameter format
         if (is_string($parameters)) {
-            // If the tool requires a URL, use that as the key
-            if ($this->isUrlParameter($baseToolName, $parameters)) {
-                return ['url' => $parameters];
-            }
-
-            // Default to using 'text' as the key
-            return ['text' => $parameters];
+            return $this->isUrlParameter($parameters)
+                ? ['url' => $parameters]
+                : ['text' => $parameters];
         }
 
-        // If the parameter is an object, convert it to an array
         if (is_object($parameters)) {
             return (array) $parameters;
         }
 
-        // If it's already an array, return it
         if (is_array($parameters)) {
             return $parameters;
         }
 
-        // Default to empty parameters
         return [];
     }
 
-    protected function isUrlParameter(string $toolName, string $parameter): bool
+    protected function isUrlParameter(string $parameter): bool
     {
         return (filter_var($parameter, FILTER_VALIDATE_URL) !== false) &&
             (str_starts_with($parameter, 'http://') || str_starts_with($parameter, 'https://'));
@@ -462,16 +617,10 @@ class Relay
      */
     protected function executeMCPToolCall(string $toolName, array $parameters): array
     {
-        // MCP requires arguments to be an object, not an array
-        $normalizedParamsObject = (object) $parameters;
-
-        $requestParams = [
+        return $this->transport->sendRequest('tools/call', [
             'name' => $toolName,
-            'arguments' => $normalizedParamsObject,
-        ];
-
-        // Call the tool using JSON-RPC format with correct MCP endpoint: tools/call
-        return $this->transport->sendRequest('tools/call', $requestParams);
+            'arguments' => (object) $parameters,
+        ]);
     }
 
     /**
@@ -479,12 +628,10 @@ class Relay
      */
     protected function formatToolResponse(array $response): string
     {
-        // MCP responses may have a content array with text and image items
         if (isset($response['content']) && is_array($response['content'])) {
             return $this->formatContentResponse($response);
         }
 
-        // For other response formats, convert to a string
         return $this->convertResponseToString($response);
     }
 
@@ -510,50 +657,38 @@ class Relay
 
         $prefix = $isError ? 'ERROR: ' : '';
 
-        // Return text content if available
         if ($texts !== []) {
             return $prefix.implode("\n", $texts);
         }
 
-        // Return image references if available and no text
         if ($images !== []) {
             return $prefix.implode("\n", $images);
         }
 
-        // Default message for empty content
         return $prefix.'Tool executed'.($prefix === '' ? ' successfully' : '');
     }
 
     protected function convertResponseToString(mixed $response): string
     {
-        // Default success message
-        $defaultMessage = 'Tool executed successfully';
-
         if (is_string($response)) {
             return $response;
-        }
-
-        if (is_array($response)) {
-            $json = json_encode($response, JSON_PRETTY_PRINT);
-
-            return $json !== false ? $json : $defaultMessage;
         }
 
         if (is_scalar($response)) {
             return (string) $response;
         }
 
-        if (is_object($response)) {
-            if (method_exists($response, '__toString')) {
-                return (string) $response;
-            }
-
-            $json = json_encode($response, JSON_PRETTY_PRINT);
-
-            return $json !== false ? $json : 'Tool returned an object result';
+        if (is_object($response) && method_exists($response, '__toString')) {
+            return (string) $response;
         }
 
-        return $defaultMessage;
+        if (is_array($response) || is_object($response)) {
+            $json = json_encode($response, JSON_PRETTY_PRINT);
+
+            return $json !== false ? $json : 'Tool executed successfully';
+        }
+
+        return 'Tool executed successfully';
     }
 
     /**
