@@ -67,7 +67,10 @@ it('marks required parameters via the required flag on the type', function (): v
     $relay = new RelayFake($this->serverName);
     $tools = $relay->format(ToolFormat::AI_SDK)->tools();
 
-    // test_tool: only param1 is required -- use reflection to inspect the protected property
+    // test_tool: only param1 is required.
+    // illuminate/json-schema tracks `required` as parent-object state in JSON Schema,
+    // so it isn't exposed via a public method on Type — reflection is the only way to
+    // verify the flag was set before the schema is serialised.
     $schema = new JsonSchemaTypeFactory;
     $params = $tools[0]->schema($schema);
 

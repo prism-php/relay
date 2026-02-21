@@ -5,9 +5,7 @@
   "require": {
     "php": "^8.2",
     "prism-php/prism": ">=0.93 ^0",
-    "laravel/framework": "^11.0|^12.0",
-    "laravel/ai": "^0.2.1",
-    "illuminate/json-schema": "*"
+    "laravel/framework": "^11.0|^12.0"
   },
   "require-dev": {
     "pestphp/pest": "^3.0",

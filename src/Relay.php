@@ -67,24 +67,18 @@ class Relay
         $format = $this->runtimeFormat ?? config('relay.tool_format', ToolFormat::RELAY);
 
         if ($format === ToolFormat::AI_SDK) {
-            return $this->laravelTools();
+            if (! interface_exists(\Laravel\Ai\Contracts\Tool::class) || ! interface_exists(\Illuminate\Contracts\JsonSchema\JsonSchema::class)) {
+                throw new ToolDefinitionException(
+                    'ToolFormat::AI_SDK requires the laravel/ai and illuminate/json-schema packages. Install them with: composer require laravel/ai illuminate/json-schema'
+                );
+            }
+
+            return $this->createLaravelToolsFromDefinitions($this->fetchToolDefinitions());
         }
 
         $toolDefinitions = $this->fetchToolDefinitions();
 
         return $this->createToolsFromDefinitions($toolDefinitions);
-    }
-
-    /**
-     * @return array<int, \Laravel\Ai\Contracts\Tool>
-     *
-     * @throws ToolDefinitionException
-     */
-    protected function laravelTools(): array
-    {
-        $toolDefinitions = $this->fetchToolDefinitions();
-
-        return $this->createLaravelToolsFromDefinitions($toolDefinitions);
     }
 
     /**
@@ -221,13 +215,15 @@ class Relay
         $required = data_get($definition, 'inputSchema.required', []);
         $result = [];
 
+        $definitionName = (string) data_get($definition, 'name', 'unknown');
+
         foreach ($properties as $name => $property) {
-            $type = $this->buildLaravelTypeFromProperty($schema, (string) $name, $property, (string) data_get($definition, 'name', 'unknown'));
-            if (!$type instanceof \Illuminate\JsonSchema\Types\Type) {
+            $type = $this->buildLaravelTypeFromProperty($schema, $property);
+            if (! $type instanceof \Illuminate\JsonSchema\Types\Type) {
                 continue;
             }
 
-            $type = $type->description($this->getParameterDescription((string) $name, $property, (string) data_get($definition, 'name', 'unknown')));
+            $type = $type->description($this->getParameterDescription((string) $name, $property, $definitionName));
 
             if (in_array($name, $required)) {
                 $type = $type->required();
@@ -242,7 +238,7 @@ class Relay
     /**
      * @param  array<string, mixed>  $property
      */
-    protected function buildLaravelTypeFromProperty(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, string $name, array $property, string $definitionName): ?\Illuminate\JsonSchema\Types\Type
+    protected function buildLaravelTypeFromProperty(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property): ?\Illuminate\JsonSchema\Types\Type
     {
         if ($property === []) {
             return null;
@@ -251,6 +247,7 @@ class Relay
         $type = $property['type'] ?? null;
 
         if ($type === null && isset($property['anyOf'])) {
+            // The Laravel AI SDK does not support union types; fall back to string.
             return $schema->string();
         }
 
@@ -260,8 +257,8 @@ class Relay
             'integer' => $schema->integer(),
             'boolean' => $schema->boolean(),
             'enum' => $schema->string()->enum($property['options'] ?? $property['enum'] ?? []),
-            'array' => $this->buildLaravelArrayType($schema, $property, $definitionName),
-            'object' => $this->buildLaravelObjectType($schema, $property, $definitionName),
+            'array' => $this->buildLaravelArrayType($schema, $property),
+            'object' => $this->buildLaravelObjectType($schema, $property),
             default => null,
         };
     }
@@ -269,13 +266,13 @@ class Relay
     /**
      * @param  array<string, mixed>  $property
      */
-    protected function buildLaravelArrayType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property, string $definitionName): \Illuminate\JsonSchema\Types\ArrayType
+    protected function buildLaravelArrayType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property): \Illuminate\JsonSchema\Types\ArrayType
     {
         $arrayType = $schema->array();
 
         $items = data_get($property, 'items', []);
         if ($items !== []) {
-            $itemType = $this->buildLaravelTypeFromProperty($schema, '', $items, $definitionName);
+            $itemType = $this->buildLaravelTypeFromProperty($schema, $items);
             if ($itemType instanceof \Illuminate\JsonSchema\Types\Type) {
                 $arrayType->items($itemType);
             }
@@ -287,12 +284,12 @@ class Relay
     /**
      * @param  array<string, mixed>  $property
      */
-    protected function buildLaravelObjectType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property, string $definitionName): \Illuminate\JsonSchema\Types\ObjectType
+    protected function buildLaravelObjectType(\Illuminate\Contracts\JsonSchema\JsonSchema $schema, array $property): \Illuminate\JsonSchema\Types\ObjectType
     {
         $nestedProperties = [];
 
         foreach (data_get($property, 'properties', []) as $propName => $propDef) {
-            $propType = $this->buildLaravelTypeFromProperty($schema, (string) $propName, $propDef, $definitionName);
+            $propType = $this->buildLaravelTypeFromProperty($schema, $propDef);
             if ($propType instanceof \Illuminate\JsonSchema\Types\Type) {
                 $nestedProperties[$propName] = $propType;
             }
