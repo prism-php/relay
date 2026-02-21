@@ -8,7 +8,7 @@ on:
   pull_request:
 
 env:
-  phpv: 8.3
+  phpv: 8.4
 
 jobs:
   phpstan:
@@ -25,7 +25,10 @@ jobs:
           coverage: none
 
       - name: Install composer dependencies
-        uses: ramsey/composer-install@v3
+        run: composer update --prefer-stable --prefer-dist --no-interaction
+
+      - name: Install optional AI SDK dependencies
+        run: composer require laravel/ai --no-interaction
 
       - name: Run PHPStan
         run: ./vendor/bin/phpstan --error-format=github

@@ -15,6 +15,10 @@ use Tests\TestDoubles\FakeTransport;
 use Tests\TestDoubles\RelayFake;
 
 beforeEach(function (): void {
+    if (! interface_exists(\Laravel\Ai\Contracts\Tool::class)) {
+        test()->skip('laravel/ai package not installed');
+    }
+
     $this->serverName = 'test_server';
     config()->set('relay.servers.'.$this->serverName, [
         'url' => 'http://example.com/api',

@@ -115,7 +115,7 @@ it('returns laravel ai tools when tool_format is aisdk', function (): void {
     $tools = $relay->tools();
 
     expect($tools[0])->toBeInstanceOf(\Laravel\Ai\Contracts\Tool::class);
-});
+})->skip(fn (): bool => ! interface_exists(\Laravel\Ai\Contracts\Tool::class), 'laravel/ai package not installed');
 
 it('runtime format() overrides config tool_format', function (): void {
     config()->set('relay.tool_format', ToolFormat::RELAY);
@@ -124,7 +124,7 @@ it('runtime format() overrides config tool_format', function (): void {
     $tools = $relay->tools();
 
     expect($tools[0])->toBeInstanceOf(\Laravel\Ai\Contracts\Tool::class);
-});
+})->skip(fn (): bool => ! interface_exists(\Laravel\Ai\Contracts\Tool::class), 'laravel/ai package not installed');
 
 it('extractBaseToolName strips the relay namespace prefix', function (): void {
     $relay = new RelayFake($this->serverName);
