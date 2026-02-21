@@ -124,7 +124,7 @@ This command creates an interactive CLI that lets you input prompts that will be
 
 ## Transport Types
 
-Arc supports multiple transport mechanisms:
+Relay supports multiple transport mechanisms:
 
 ### HTTP Transport
 
@@ -141,6 +141,56 @@ For MCP servers that communicate over HTTP:
     ]
 ],
 ```
+
+#### OAuth / Bearer Token Authentication
+
+The [MCP 2025-11-25 authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization) defines an OAuth 2.1 flow for HTTP-based transports. **Relay handles only the last step — attaching the token to every request.** Your application is responsible for running the full OAuth flow and supplying the resulting access token at runtime.
+
+##### What your application must handle
+
+Before calling `withToken()`, your code must:
+
+1. **Discover the authorization server** — make an unauthenticated request to the MCP server and read the `WWW-Authenticate` header from the `401` response, or probe `/.well-known/oauth-protected-resource`. The response contains the authorization server URL.
+2. **Run the OAuth 2.1 authorization code flow** — including PKCE (`S256` code challenge is required by the spec) and the `resource` parameter ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html)) identifying the MCP server.
+3. **Exchange the code for a token** and store/refresh it as needed. Tokens are short-lived; implement refresh token rotation.
+
+> [!NOTE]
+> The spec covers this in detail: [MCP Authorization — 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
+
+##### Passing the token to Relay
+
+Once you have a valid Bearer token, pass it to Relay at request time. The runtime token takes priority over any static `api_key` set in config.
+
+```php
+use Prism\Relay\Facades\Relay;
+use Prism\Relay\Exceptions\AuthorizationException;
+use Prism\Relay\Exceptions\TransportException;
+
+// Via the Facade (returns a RelayBuilder)
+$tools = Relay::withToken($request->user()->mcp_token)->tools('github');
+
+// Or on a Relay instance
+$relay = Relay::make('github');
+$tools = $relay->withToken($request->user()->mcp_token)->tools();
+```
+
+When the MCP server rejects the token with HTTP 401, Relay throws `AuthorizationException`. Use this to trigger a re-authorization flow in your app:
+
+```php
+try {
+    $tools = Relay::withToken($token)->tools('github');
+} catch (AuthorizationException $e) {
+    // Token is missing, expired, or rejected (HTTP 401)
+    // Re-run the OAuth flow to get a fresh token
+    return redirect('/oauth/reconnect');
+} catch (TransportException $e) {
+    // Other transport failure (non-401)
+    Log::error('MCP Transport error: ' . $e->getMessage());
+}
+```
+
+> [!NOTE]
+> OAuth tokens are only supported with HTTP transport. Passing a token to a Stdio-configured server throws a `ServerConfigurationException`. For Stdio servers, provide credentials via the `env` config key instead.
 
 ### STDIO Transport
 
@@ -199,6 +249,7 @@ $response = Prism::text()
 The package uses specific exception types for better error handling:
 
 ```php
+use Prism\Relay\Exceptions\AuthorizationException;
 use Prism\Relay\Exceptions\RelayException;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\ToolCallException;
@@ -214,6 +265,9 @@ try {
 } catch (ToolDefinitionException $e) {
     // Handle issues with tool definitions from the MCP server
     Log::error('MCP Tool definition error: ' . $e->getMessage());
+} catch (AuthorizationException $e) {
+    // Handle HTTP 401 — token is missing, expired, or invalid
+    return redirect('/oauth/reconnect');
 } catch (TransportException $e) {
     // Handle communication errors with the MCP server
     Log::error('MCP Transport error: ' . $e->getMessage());
