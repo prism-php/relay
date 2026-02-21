@@ -29,9 +29,9 @@ return [
     | Tool Format
     |--------------------------------------------------------------------------
     |
-    | Controls which format Relay::tools() returns. Use 'relay' (default) for
-    | Prism\Prism\Tool objects, or 'aisdk' for Laravel\Ai\Contracts\Tool.
-    | The latter requires the Laravel AI SDK (the laravel/ai package).
+    | This option controls the format of tools returned by Relay::tools(). Set to
+    | 'relay' (the default) for Prism Tool objects, or set to 'aisdk' for the
+    | Laravel AI SDK contract. The 'aisdk' option requires the laravel/ai.
     |
     */
     'tool_format' => ToolFormat::from(env('RELAY_TOOL_FORMAT', ToolFormat::RELAY->value)),
