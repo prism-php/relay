@@ -25,10 +25,7 @@ jobs:
           coverage: none
 
       - name: Install composer dependencies
-        run: composer update --prefer-stable --prefer-dist --no-interaction
-
-      - name: Install optional AI SDK dependencies
-        run: composer require laravel/ai --no-interaction
+        uses: ramsey/composer-install@v3
 
       - name: Run PHPStan
         run: ./vendor/bin/phpstan --error-format=github

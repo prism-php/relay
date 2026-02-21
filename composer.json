@@ -3,9 +3,10 @@
   "description": "A Prism tool for interacting with MCP servers",
   "type": "library",
   "require": {
-    "php": "^8.2",
+    "php": "^8.4",
     "prism-php/prism": ">=0.93 ^0",
-    "laravel/framework": "^11.0|^12.0"
+    "laravel/framework": "^12.0",
+    "laravel/ai": "^0"
   },
   "require-dev": {
     "pestphp/pest": "^3.0",
@@ -20,10 +21,6 @@
     "guzzlehttp/guzzle": "^7.8",
     "projektgopher/whisky": "^0.7.0",
     "mockery/mockery": "^1.6"
-  },
-  "suggest": {
-    "laravel/ai": "Required for the AI SDK tool format via format(ToolFormat::AI_SDK)->tools()",
-    "illuminate/json-schema": "Required for JSON Schema conversion in AI SDK tool format (included in Laravel 12+)"
   },
   "license": "MIT",
   "autoload": {
