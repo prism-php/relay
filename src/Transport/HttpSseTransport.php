@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Prism\Relay\Transport;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Psr7\Request;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
 use Prism\Relay\Exceptions\TransportException;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 
 class HttpSseTransport implements Transport
@@ -19,8 +19,6 @@ class HttpSseTransport implements Transport
     protected ?string $messageEndpoint = null;
 
     protected ?StreamInterface $sseStream = null;
-
-    protected ?Client $httpClient = null;
 
     protected bool $initialized = false;
 
@@ -52,8 +50,7 @@ class HttpSseTransport implements Transport
             return;
         }
 
-        $this->httpClient = $this->createHttpClient();
-        $this->connectToSSE();
+        $this->connectToSse();
         $this->performInitialize();
         $this->sendInitializedNotification();
         $this->initialized = true;
@@ -104,7 +101,6 @@ class HttpSseTransport implements Transport
             );
         } finally {
             $this->sseStream = null;
-            $this->httpClient = null;
             $this->sessionId = null;
             $this->messageEndpoint = null;
             $this->initialized = false;
@@ -112,45 +108,27 @@ class HttpSseTransport implements Transport
         }
     }
 
-    protected function createHttpClient(): Client
-    {
-        $clientConfig = [
-            'timeout' => 0, // No timeout for SSE stream
-            'read_timeout' => $this->getTimeout(),
-            'headers' => $this->buildBaseHeaders(),
-        ];
-
-        if ($this->hasApiKey()) {
-            $clientConfig['headers']['Authorization'] = 'Bearer '.$this->getApiKey();
-        }
-
-        if ($this->hasHeaders()) {
-            $clientConfig['headers'] = array_merge($clientConfig['headers'], $this->getHeaders());
-        }
-
-        return new Client($clientConfig);
-    }
-
     /**
      * @throws TransportException
      */
-    protected function connectToSSE(): void
+    protected function connectToSse(): void
     {
         try {
-            $sseUrl = $this->getSseUrl();
+            $response = $this->buildSseRequest()
+                ->withOptions(['stream' => true])
+                ->withHeaders([
+                    'Accept' => 'text/event-stream',
+                    'Cache-Control' => 'no-cache',
+                ])
+                ->get($this->getSseUrl());
 
-            $request = new Request('GET', $sseUrl, [
-                'Accept' => 'text/event-stream',
-                'Cache-Control' => 'no-cache',
-            ]);
+            if ($response->failed()) {
+                throw new TransportException(
+                    "SSE connection failed with status code: {$response->status()}"
+                );
+            }
 
-            /** @var ResponseInterface $response */
-            $response = $this->httpClient->send($request, [
-                'stream' => true,
-                'read_timeout' => $this->getTimeout(),
-            ]);
-
-            $this->sseStream = $response->getBody();
+            $this->sseStream = $response->toPsrResponse()->getBody();
 
             // Read the initial endpoint event
             $this->readEndpointEvent();
@@ -336,19 +314,12 @@ class HttpSseTransport implements Transport
         }
 
         try {
-            $response = $this->httpClient->post($this->messageEndpoint, [
-                'json' => $payload,
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                ],
-                'timeout' => $this->getTimeout(),
-            ]);
+            $response = $this->buildPostRequest()
+                ->post($this->messageEndpoint, $payload);
 
-            $statusCode = $response->getStatusCode();
-
-            if ($statusCode >= 400) {
+            if ($response->failed()) {
                 throw new TransportException(
-                    "HTTP request failed with status code: {$statusCode}"
+                    "HTTP request failed with status code: {$response->status()}"
                 );
             }
         } catch (\Throwable $e) {
@@ -465,8 +436,6 @@ class HttpSseTransport implements Transport
         }
 
         // Try to read from the stream character by character until we find a newline
-        $char = '';
-
         while (! $this->sseStream->eof()) {
             try {
                 $char = $this->sseStream->read(1);
@@ -476,11 +445,6 @@ class HttpSseTransport implements Transport
 
             if ($char === '') {
                 // No data available yet
-                if ($this->sseBuffer !== '') {
-                    // We have partial data but stream returned empty, wait a bit
-                    return null;
-                }
-
                 return null;
             }
 
@@ -547,15 +511,33 @@ class HttpSseTransport implements Transport
         );
     }
 
-    /**
-     * @return array<string, string>
-     */
-    protected function buildBaseHeaders(): array
+    protected function buildSseRequest(): PendingRequest
     {
-        return [
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json',
-        ];
+        return Http::timeout(0)
+            ->connectTimeout($this->getTimeout())
+            ->when(
+                $this->hasApiKey(),
+                fn (PendingRequest $http) => $http->withToken($this->getApiKey())
+            )
+            ->when(
+                $this->hasHeaders(),
+                fn (PendingRequest $http) => $http->withHeaders($this->getHeaders())
+            );
+    }
+
+    protected function buildPostRequest(): PendingRequest
+    {
+        return Http::timeout($this->getTimeout())
+            ->acceptJson()
+            ->contentType('application/json')
+            ->when(
+                $this->hasApiKey(),
+                fn (PendingRequest $http) => $http->withToken($this->getApiKey())
+            )
+            ->when(
+                $this->hasHeaders(),
+                fn (PendingRequest $http) => $http->withHeaders($this->getHeaders())
+            );
     }
 
     protected function getSseUrl(): string

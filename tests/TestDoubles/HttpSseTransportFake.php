@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\TestDoubles;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Utils;
 use Prism\Relay\Exceptions\TransportException;
 use Prism\Relay\Transport\HttpSseTransport;
@@ -96,14 +95,7 @@ class HttpSseTransportFake extends HttpSseTransport
     }
 
     #[\Override]
-    protected function createHttpClient(): Client
-    {
-        // Return a real client but we won't actually use it
-        return new Client;
-    }
-
-    #[\Override]
-    protected function connectToSSE(): void
+    protected function connectToSse(): void
     {
         if ($this->shouldFailConnect) {
             throw new TransportException('Failed to connect to SSE endpoint: Connection refused');
