@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Prism\Relay\Transport;
 
 use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Prism\Relay\Exceptions\TransportException;
 use Psr\Http\Message\StreamInterface;
@@ -50,10 +49,16 @@ class HttpSseTransport implements Transport
             return;
         }
 
-        $this->connectToSse();
-        $this->performInitialize();
-        $this->sendInitializedNotification();
-        $this->initialized = true;
+        try {
+            $this->connectToSse();
+            $this->performInitialize();
+            $this->sendInitializedNotification();
+            $this->initialized = true;
+        } catch (\Throwable $e) {
+            $this->close();
+
+            throw $e;
+        }
     }
 
     /**
@@ -86,26 +91,14 @@ class HttpSseTransport implements Transport
         }
     }
 
-    /**
-     * @throws TransportException
-     */
     #[\Override]
     public function close(): void
     {
-        try {
-            $this->closeSseStream();
-        } catch (\Throwable $e) {
-            throw new TransportException(
-                'Failed to close HTTP SSE transport: '.$e->getMessage(),
-                previous: $e
-            );
-        } finally {
-            $this->sseStream = null;
-            $this->sessionId = null;
-            $this->messageEndpoint = null;
-            $this->initialized = false;
-            $this->sseBuffer = '';
-        }
+        $this->closeSseStream();
+        $this->sessionId = null;
+        $this->messageEndpoint = null;
+        $this->initialized = false;
+        $this->sseBuffer = '';
     }
 
     /**
@@ -149,51 +142,15 @@ class HttpSseTransport implements Transport
      */
     protected function readEndpointEvent(): void
     {
-        $startTime = microtime(true);
-        $timeout = $this->getTimeout();
+        $event = $this->readNextEvent();
 
-        $eventType = null;
-        $dataBuffer = '';
-
-        while ((microtime(true) - $startTime) < $timeout) {
-            $line = $this->readSseLine();
-
-            if ($line === null) {
-                usleep(50000);
-
-                continue;
-            }
-
-            $line = rtrim($line, "\r");
-
-            // Blank line = end of event
-            if ($line === '') {
-                if ($eventType === 'endpoint' && $dataBuffer !== '') {
-                    $this->parseEndpointData($dataBuffer);
-
-                    return;
-                }
-
-                $eventType = null;
-                $dataBuffer = '';
-
-                continue;
-            }
-
-            if (str_starts_with($line, 'event:')) {
-                $eventType = trim(substr($line, 6));
-            } elseif (str_starts_with($line, 'data:')) {
-                $data = substr($line, 5);
-                if (str_starts_with($data, ' ')) {
-                    $data = substr($data, 1);
-                }
-                $dataBuffer .= ($dataBuffer !== '' ? "\n" : '').$data;
-            }
+        if ($event === null || $event['type'] !== 'endpoint' || $event['data'] === '') {
+            throw new TransportException(
+                'Timeout waiting for endpoint event from SSE stream after '.$this->getTimeout().' seconds'
+            );
         }
 
-        throw new TransportException(
-            "Timeout waiting for endpoint event from SSE stream after {$timeout} seconds"
-        );
+        $this->parseEndpointData($event['data']);
     }
 
     /**
@@ -341,54 +298,18 @@ class HttpSseTransport implements Transport
      */
     protected function waitForResponse(): array
     {
-        $startTime = microtime(true);
         $timeout = $this->getTimeout();
-
-        $eventType = null;
-        $dataBuffer = '';
+        $startTime = microtime(true);
 
         while ((microtime(true) - $startTime) < $timeout) {
-            $line = $this->readSseLine();
+            $event = $this->readNextEvent();
 
-            if ($line === null) {
-                usleep(50000);
-
-                continue;
+            if ($event === null) {
+                break;
             }
 
-            $line = rtrim($line, "\r");
+            $result = $this->processSSEEvent($event['type'], $event['data']);
 
-            // Blank line = end of event
-            if ($line === '') {
-                if ($dataBuffer !== '') {
-                    $result = $this->processSSEEvent($eventType, $dataBuffer);
-
-                    if ($result !== null) {
-                        return $result;
-                    }
-
-                    $dataBuffer = '';
-                    $eventType = null;
-                }
-
-                continue;
-            }
-
-            if (str_starts_with($line, 'event:')) {
-                $eventType = trim(substr($line, 6));
-            } elseif (str_starts_with($line, 'data:')) {
-                $data = substr($line, 5);
-                if (str_starts_with($data, ' ')) {
-                    $data = substr($data, 1);
-                }
-                $dataBuffer .= ($dataBuffer !== '' ? "\n" : '').$data;
-            }
-            // Ignore id:, retry:, and comment lines (starting with :)
-        }
-
-        // Check if there's a trailing event without final blank line
-        if ($dataBuffer !== '') {
-            $result = $this->processSSEEvent($eventType, $dataBuffer);
             if ($result !== null) {
                 return $result;
             }
@@ -427,6 +348,61 @@ class HttpSseTransport implements Transport
         }
 
         return $parsed['result'] ?? [];
+    }
+
+    /**
+     * Read the next complete SSE event from the stream.
+     *
+     * @return array{type: ?string, data: string}|null
+     */
+    protected function readNextEvent(): ?array
+    {
+        $startTime = microtime(true);
+        $timeout = $this->getTimeout();
+
+        $eventType = null;
+        $dataBuffer = '';
+
+        while ((microtime(true) - $startTime) < $timeout) {
+            $line = $this->readSseLine();
+
+            if ($line === null) {
+                usleep(50000);
+
+                continue;
+            }
+
+            $line = rtrim($line, "\r");
+
+            // Blank line = end of event
+            if ($line === '') {
+                if ($dataBuffer !== '') {
+                    return ['type' => $eventType, 'data' => $dataBuffer];
+                }
+
+                $eventType = null;
+
+                continue;
+            }
+
+            if (str_starts_with($line, 'event:')) {
+                $eventType = trim(substr($line, 6));
+            } elseif (str_starts_with($line, 'data:')) {
+                $data = substr($line, 5);
+                if (str_starts_with($data, ' ')) {
+                    $data = substr($data, 1);
+                }
+                $dataBuffer .= ($dataBuffer !== '' ? "\n" : '').$data;
+            }
+            // Ignore id:, retry:, and comment lines (starting with :)
+        }
+
+        // Handle trailing event without final blank line
+        if ($dataBuffer !== '') {
+            return ['type' => $eventType, 'data' => $dataBuffer];
+        }
+
+        return null;
     }
 
     protected function readSseLine(): ?string
@@ -502,7 +478,7 @@ class HttpSseTransport implements Transport
         $errorData = isset($error['data']) ? json_encode($error['data']) : '';
 
         $detailsSuffix = '';
-        if (! ($errorData === '' || $errorData === '0' || $errorData === false) && $errorData !== '0' && $errorData !== 'false') {
+        if ($errorData !== '' && $errorData !== false) {
             $detailsSuffix = " Details: {$errorData}";
         }
 
