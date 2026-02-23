@@ -139,7 +139,7 @@ it('throws exception on JSON-RPC error', function (): void {
     $transport->start();
     $transport->shouldReturnError('Tool not found', 404);
 
-    expect(fn () => $transport->sendRequest('tools/call', ['name' => 'nonexistent']))
+    expect(fn (): array => $transport->sendRequest('tools/call', ['name' => 'nonexistent']))
         ->toThrow(TransportException::class, 'JSON-RPC error: Tool not found (code: 404)');
 });
 
@@ -248,7 +248,7 @@ it('throws exception for invalid endpoint data', function (): void {
     $method = $reflection->getMethod('parseEndpointData');
     $method->setAccessible(true);
 
-    expect(fn () => $method->invoke($transport, '/invalid/endpoint'))
+    expect(fn (): mixed => $method->invoke($transport, '/invalid/endpoint'))
         ->toThrow(TransportException::class, 'Invalid endpoint data');
 });
 
@@ -299,7 +299,7 @@ it('handles JSON-RPC error in SSE event', function (): void {
     $method = $reflection->getMethod('processSSEEvent');
     $method->setAccessible(true);
 
-    expect(fn () => $method->invoke(
+    expect(fn (): mixed => $method->invoke(
         $transport,
         'message',
         '{"jsonrpc":"2.0","id":"1","error":{"code":500,"message":"Internal error"}}'

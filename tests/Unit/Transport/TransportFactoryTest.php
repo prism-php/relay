@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 use Prism\Relay\Enums\Transport as TransportEnum;
 use Prism\Relay\Exceptions\ServerConfigurationException;
+use Prism\Relay\Transport\HttpSseTransport;
 use Prism\Relay\Transport\HttpTransport;
 use Prism\Relay\Transport\StdioTransport;
-use Prism\Relay\Transport\HttpSseTransport;
 use Prism\Relay\Transport\TransportFactory;
 
 it('creates HTTP transport', function (): void {

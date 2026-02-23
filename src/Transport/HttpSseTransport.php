@@ -407,7 +407,7 @@ class HttpSseTransport implements Transport
 
     protected function readSseLine(): ?string
     {
-        if ($this->sseStream === null || $this->sseStream->eof()) {
+        if (! $this->sseStream instanceof StreamInterface || $this->sseStream->eof()) {
             return null;
         }
 
@@ -442,14 +442,14 @@ class HttpSseTransport implements Transport
      */
     protected function ensureConnected(): void
     {
-        if (! $this->initialized || $this->sseStream === null || $this->messageEndpoint === null) {
+        if (! $this->initialized || ! $this->sseStream instanceof StreamInterface || $this->messageEndpoint === null) {
             $this->start();
         }
     }
 
     protected function closeSseStream(): void
     {
-        if ($this->sseStream !== null) {
+        if ($this->sseStream instanceof StreamInterface) {
             try {
                 $this->sseStream->close();
             } catch (\Throwable) {
@@ -524,7 +524,7 @@ class HttpSseTransport implements Transport
     protected function getBaseUrl(): string
     {
         $url = $this->config['url'];
-        $parsed = parse_url($url);
+        $parsed = parse_url((string) $url);
 
         return ($parsed['scheme'] ?? 'http').'://'.($parsed['host'] ?? 'localhost').
             (isset($parsed['port']) ? ':'.$parsed['port'] : '');
