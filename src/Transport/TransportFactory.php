@@ -19,6 +19,7 @@ class TransportFactory
         return match ($type) {
             TransportEnum::Http => new HttpTransport($config),
             TransportEnum::Stdio => new StdioTransport($config),
+            TransportEnum::HttpSse => new HttpSseTransport($config),
         };
     }
 }
