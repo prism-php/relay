@@ -168,7 +168,7 @@ class HttpSseTransport implements Transport
         }
 
         // Extract session ID using regex to avoid parse_str (security preset)
-        if (! preg_match('/session_id=([^&\s]+)/', $data, $matches) || $matches[1] === '') {
+        if (! preg_match('/session_id=([^&\s]+)/', $data, $matches)) {
             throw new TransportException(
                 "No session_id found in endpoint data: {$data}"
             );
@@ -407,12 +407,16 @@ class HttpSseTransport implements Transport
 
     protected function readSseLine(): ?string
     {
-        if (! $this->sseStream instanceof StreamInterface || $this->sseStream->eof()) {
+        if (! $this->sseStream instanceof StreamInterface) {
             return null;
         }
 
         // Try to read from the stream character by character until we find a newline
-        while (! $this->sseStream->eof()) {
+        while (true) {
+            if ($this->sseStream->eof()) {
+                return null;
+            }
+
             try {
                 $char = $this->sseStream->read(1);
             } catch (\Throwable) {
@@ -433,8 +437,6 @@ class HttpSseTransport implements Transport
 
             $this->sseBuffer .= $char;
         }
-
-        return null;
     }
 
     /**
