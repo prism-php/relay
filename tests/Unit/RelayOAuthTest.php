@@ -47,19 +47,22 @@ it('withToken on Stdio-configured Relay throws ServerConfigurationException', fu
 
 it('withToken injects token into HTTP requests when tools() is called', function (): void {
     Http::fake([
-        'http://example.com/api' => Http::response([
-            'jsonrpc' => '2.0',
-            'id' => '1',
-            'result' => [
-                'tools' => [
-                    [
-                        'name' => 'test_tool',
-                        'description' => 'A test tool',
-                        'inputSchema' => ['type' => 'object', 'properties' => []],
+        'http://example.com/api' => Http::sequence()
+            ->push(['jsonrpc' => '2.0', 'id' => '1', 'result' => ['protocolVersion' => '2025-03-26']])
+            ->push('', 202)
+            ->push([
+                'jsonrpc' => '2.0',
+                'id' => '2',
+                'result' => [
+                    'tools' => [
+                        [
+                            'name' => 'test_tool',
+                            'description' => 'A test tool',
+                            'inputSchema' => ['type' => 'object', 'properties' => []],
+                        ],
                     ],
                 ],
-            ],
-        ]),
+            ]),
     ]);
 
     $relay = new Relay($this->serverName);

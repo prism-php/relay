@@ -34,19 +34,22 @@ it('RelayBuilder::make returns a Relay instance with the token applied', functio
 
 it('RelayBuilder::tools calls Relay::tools with the token injected', function (): void {
     Http::fake([
-        'http://example.com/api' => Http::response([
-            'jsonrpc' => '2.0',
-            'id' => '1',
-            'result' => [
-                'tools' => [
-                    [
-                        'name' => 'test_tool',
-                        'description' => 'A test tool',
-                        'inputSchema' => ['type' => 'object', 'properties' => []],
+        'http://example.com/api' => Http::sequence()
+            ->push(['jsonrpc' => '2.0', 'id' => '1', 'result' => ['protocolVersion' => '2025-03-26']])
+            ->push('', 202)
+            ->push([
+                'jsonrpc' => '2.0',
+                'id' => '2',
+                'result' => [
+                    'tools' => [
+                        [
+                            'name' => 'test_tool',
+                            'description' => 'A test tool',
+                            'inputSchema' => ['type' => 'object', 'properties' => []],
+                        ],
                     ],
                 ],
-            ],
-        ]),
+            ]),
     ]);
 
     $factory = new RelayFactory;
