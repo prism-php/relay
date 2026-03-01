@@ -6,6 +6,8 @@ namespace Prism\Relay\Transport;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Prism\Relay\Exceptions\AuthorizationException;
+use Prism\Relay\Exceptions\RelayException;
 use Prism\Relay\Exceptions\TransportException;
 
 class HttpTransport implements Transport
@@ -39,7 +41,7 @@ class HttpTransport implements Transport
 
             return $this->processResponse($response);
         } catch (\Throwable $e) {
-            if ($e instanceof TransportException) {
+            if ($e instanceof RelayException) {
                 throw $e;
             }
 
@@ -72,11 +74,13 @@ class HttpTransport implements Transport
      */
     protected function sendHttpRequest(array $payload): Response
     {
+        $token = $this->resolveAuthToken();
+
         return Http::timeout($this->getTimeout())
             ->acceptJson()
             ->when(
-                $this->hasApiKey(),
-                fn ($http) => $http->withToken($this->getApiKey())
+                $token !== null,
+                fn ($http) => $http->withToken((string) $token)
             )
             ->when(
                 $this->hasHeaders(),
@@ -85,21 +89,47 @@ class HttpTransport implements Transport
             ->post($this->getServerUrl(), $payload);
     }
 
+    /**
+     * Resolve the authentication token, preferring access_token over api_key.
+     */
+    protected function resolveAuthToken(): ?string
+    {
+        if ($this->hasAccessToken()) {
+            return $this->getAccessToken();
+        }
+
+        if ($this->hasApiKey()) {
+            return $this->getApiKey();
+        }
+
+        return null;
+    }
+
     protected function getTimeout(): int
     {
         return $this->config['timeout'] ?? 30;
     }
 
+    protected function hasAccessToken(): bool
+    {
+        return isset($this->config['access_token']);
+    }
+
+    protected function getAccessToken(): string
+    {
+        return (string) ($this->config['access_token'] ?? '');
+    }
+
     protected function hasApiKey(): bool
     {
-        return isset($this->config['api_key']) && $this->config['api_key'] !== null;
+        return isset($this->config['api_key']);
     }
 
     protected function hasHeaders(): bool
     {
         return isset($this->config['headers'])
             && is_array($this->config['headers'])
-            && (isset($this->config['headers']) && $this->config['headers'] !== []);
+            && $this->config['headers'] !== [];
     }
 
     protected function getApiKey(): string
@@ -139,10 +169,17 @@ class HttpTransport implements Transport
     }
 
     /**
+     * @throws AuthorizationException
      * @throws TransportException
      */
     protected function validateHttpResponse(Response $response): void
     {
+        if ($response->status() === 401) {
+            throw new AuthorizationException(
+                'MCP server returned 401 Unauthorized. The access token may be missing, expired, or invalid.'
+            );
+        }
+
         if ($response->failed()) {
             throw new TransportException(
                 "HTTP request failed with status code: {$response->status()}"
@@ -177,12 +214,11 @@ class HttpTransport implements Transport
     {
         $errorMessage = $error['message'] ?? 'Unknown error';
         $errorCode = $error['code'] ?? -1;
-        $errorData = isset($error['data']) ? json_encode($error['data']) : '';
+        $errorData = isset($error['data']) ? json_encode($error['data']) : null;
 
-        $detailsSuffix = '';
-        if (! ($errorData === '' || $errorData === '0' || $errorData === false) && $errorData !== '0' && $errorData !== 'false') {
-            $detailsSuffix = " Details: {$errorData}";
-        }
+        $detailsSuffix = $errorData !== null && $errorData !== false
+            ? " Details: {$errorData}"
+            : '';
 
         throw new TransportException(
             "JSON-RPC error: {$errorMessage} (code: {$errorCode}){$detailsSuffix}"
