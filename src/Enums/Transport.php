@@ -8,4 +8,5 @@ enum Transport: string
 {
     case Http = 'http';
     case Stdio = 'stdio';
+    case HttpSse = 'http_sse';
 }

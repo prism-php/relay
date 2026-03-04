@@ -59,7 +59,26 @@ class Relay
     }
 
     /**
-     * @return array<int, Tool|\Laravel\Ai\Contracts\Tool>
+     * @throws ServerConfigurationException
+     */
+    public function withToken(string $token): static
+    {
+        $transportType = $this->serverConfig['transport'] ?? EnumsTransport::Http;
+
+        if ($transportType === EnumsTransport::Stdio) {
+            throw new ServerConfigurationException(
+                'OAuth access tokens are only supported with HTTP transport. Stdio transport credentials should be provided via environment variables.'
+            );
+        }
+
+        $this->serverConfig['access_token'] = $token;
+        $this->initializeTransport();
+
+        return $this;
+    }
+
+    /**
+     * @return array<int, Tool>
      *
      * @throws ToolDefinitionException
      */
@@ -89,7 +108,7 @@ class Relay
      */
     protected function fetchToolDefinitions(): array
     {
-        $cacheKey = "relay-tools-definitions-{$this->serverName}";
+        $cacheKey = $this->buildCacheKey();
         $cacheDuration = config('relay.cache_duration', 60);
 
         if ($cacheDuration > 0 && Cache::has($cacheKey)) {
@@ -698,6 +717,17 @@ class Relay
         }
 
         return 'Tool executed successfully';
+    }
+
+    protected function buildCacheKey(): string
+    {
+        $key = "relay-tools-definitions-{$this->serverName}";
+
+        if (isset($this->serverConfig['access_token'])) {
+            $key .= '-'.substr(hash('sha256', (string) $this->serverConfig['access_token']), 0, 16);
+        }
+
+        return $key;
     }
 
     /**

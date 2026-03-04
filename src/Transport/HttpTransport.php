@@ -6,11 +6,17 @@ namespace Prism\Relay\Transport;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Prism\Relay\Exceptions\AuthorizationException;
+use Prism\Relay\Exceptions\RelayException;
 use Prism\Relay\Exceptions\TransportException;
 
 class HttpTransport implements Transport
 {
     protected int $requestId = 0;
+
+    protected bool $started = false;
+
+    protected ?string $sessionId = null;
 
     /**
      * @param  array<string, mixed>  $config
@@ -20,7 +26,49 @@ class HttpTransport implements Transport
     ) {}
 
     #[\Override]
-    public function start(): void {}
+    public function start(): void
+    {
+        if ($this->started) {
+            return;
+        }
+
+        $this->requestId++;
+
+        $initializePayload = [
+            'jsonrpc' => '2.0',
+            'id' => (string) $this->requestId,
+            'method' => 'initialize',
+            'params' => [
+                'protocolVersion' => '2025-03-26',
+                'capabilities' => new \stdClass,
+                'clientInfo' => [
+                    'name' => 'prism-relay',
+                    'version' => '1.0.0',
+                ],
+            ],
+        ];
+
+        $initializeResponse = $this->sendHttpRequest($initializePayload);
+        $this->validateHttpResponse($initializeResponse);
+        $this->sessionId = $initializeResponse->header('Mcp-Session-Id');
+
+        $initializeJson = $this->parseJsonRpcResponse($initializeResponse);
+        $this->validateJsonRpcResponse($initializeJson);
+
+        if (isset($initializeJson['error'])) {
+            $this->handleJsonRpcError($initializeJson['error']);
+        }
+
+        $initializedNotification = [
+            'jsonrpc' => '2.0',
+            'method' => 'notifications/initialized',
+        ];
+
+        $notificationResponse = $this->sendHttpRequest($initializedNotification);
+        $this->validateHttpResponse($notificationResponse);
+
+        $this->started = true;
+    }
 
     /**
      * @param  array<string, mixed>  $params
@@ -31,6 +79,8 @@ class HttpTransport implements Transport
     #[\Override]
     public function sendRequest(string $method, array $params = []): array
     {
+        $this->start();
+
         $this->requestId++;
         $requestPayload = $this->createRequestPayload($method, $params);
 
@@ -39,7 +89,7 @@ class HttpTransport implements Transport
 
             return $this->processResponse($response);
         } catch (\Throwable $e) {
-            if ($e instanceof TransportException) {
+            if ($e instanceof RelayException) {
                 throw $e;
             }
 
@@ -63,7 +113,8 @@ class HttpTransport implements Transport
             'jsonrpc' => '2.0',
             'id' => (string) $this->requestId,
             'method' => $method,
-            'params' => $params,
+            // Some MCP HTTP servers require params to be an object, not an array.
+            'params' => $params === [] ? new \stdClass : $params,
         ];
     }
 
@@ -72,17 +123,40 @@ class HttpTransport implements Transport
      */
     protected function sendHttpRequest(array $payload): Response
     {
+        $headers = array_merge([
+            // MCP Streamable HTTP requires both content types to be accepted.
+            'Accept' => 'application/json, text/event-stream',
+        ], $this->getHeaders());
+
+        if ($this->sessionId) {
+            $headers['Mcp-Session-Id'] = $this->sessionId;
+        }
+
+        $token = $this->resolveAuthToken();
+
         return Http::timeout($this->getTimeout())
-            ->acceptJson()
+            ->withHeaders($headers)
             ->when(
-                $this->hasApiKey(),
-                fn ($http) => $http->withToken($this->getApiKey())
-            )
-            ->when(
-                $this->hasHeaders(),
-                fn ($http) => $http->withHeaders($this->getHeaders())
+                $token !== null,
+                fn ($http) => $http->withToken((string) $token)
             )
             ->post($this->getServerUrl(), $payload);
+    }
+
+    /**
+     * Resolve the authentication token, preferring access_token over api_key.
+     */
+    protected function resolveAuthToken(): ?string
+    {
+        if ($this->hasAccessToken()) {
+            return $this->getAccessToken();
+        }
+
+        if ($this->hasApiKey()) {
+            return $this->getApiKey();
+        }
+
+        return null;
     }
 
     protected function getTimeout(): int
@@ -90,16 +164,26 @@ class HttpTransport implements Transport
         return $this->config['timeout'] ?? 30;
     }
 
+    protected function hasAccessToken(): bool
+    {
+        return isset($this->config['access_token']);
+    }
+
+    protected function getAccessToken(): string
+    {
+        return (string) ($this->config['access_token'] ?? '');
+    }
+
     protected function hasApiKey(): bool
     {
-        return isset($this->config['api_key']) && $this->config['api_key'] !== null;
+        return isset($this->config['api_key']);
     }
 
     protected function hasHeaders(): bool
     {
         return isset($this->config['headers'])
             && is_array($this->config['headers'])
-            && (isset($this->config['headers']) && $this->config['headers'] !== []);
+            && $this->config['headers'] !== [];
     }
 
     protected function getApiKey(): string
@@ -128,7 +212,7 @@ class HttpTransport implements Transport
     protected function processResponse(Response $response): array
     {
         $this->validateHttpResponse($response);
-        $jsonResponse = $response->json();
+        $jsonResponse = $this->parseJsonRpcResponse($response);
         $this->validateJsonRpcResponse($jsonResponse);
 
         if (isset($jsonResponse['error'])) {
@@ -139,10 +223,95 @@ class HttpTransport implements Transport
     }
 
     /**
+     * @return array<string, mixed>
+     *
+     * @throws TransportException
+     */
+    protected function parseJsonRpcResponse(Response $response): array
+    {
+        $contentType = strtolower($response->header('Content-Type'));
+
+        if (str_contains($contentType, 'text/event-stream')) {
+            return $this->parseSseJsonRpcResponse($response->body());
+        }
+
+        $json = $response->json();
+
+        if (! is_array($json)) {
+            throw new TransportException('Invalid JSON response received from MCP server');
+        }
+
+        return $json;
+    }
+
+    /**
+     * Parse JSON-RPC payload from an SSE response body.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws TransportException
+     */
+    protected function parseSseJsonRpcResponse(string $body): array
+    {
+        $lines = preg_split("/\r\n|\n|\r/", $body) ?: [];
+        $dataLines = [];
+        $messages = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                if ($dataLines !== []) {
+                    $decoded = json_decode(implode("\n", $dataLines), true);
+
+                    if (is_array($decoded) && isset($decoded['jsonrpc'])) {
+                        $messages[] = $decoded;
+                    }
+
+                    $dataLines = [];
+                }
+
+                continue;
+            }
+
+            if (str_starts_with($line, 'data:')) {
+                $dataLines[] = ltrim(substr($line, 5));
+            }
+        }
+
+        if ($dataLines !== []) {
+            $decoded = json_decode(implode("\n", $dataLines), true);
+
+            if (is_array($decoded) && isset($decoded['jsonrpc'])) {
+                $messages[] = $decoded;
+            }
+        }
+
+        if ($messages === []) {
+            throw new TransportException('No JSON-RPC message found in SSE response');
+        }
+
+        foreach ($messages as $message) {
+            if (isset($message['id']) && (string) $message['id'] === (string) $this->requestId) {
+                return $message;
+            }
+        }
+
+        return end($messages) ?: [];
+    }
+
+    /**
+     * @throws AuthorizationException
      * @throws TransportException
      */
     protected function validateHttpResponse(Response $response): void
     {
+        if ($response->status() === 401) {
+            throw new AuthorizationException(
+                'MCP server returned 401 Unauthorized. The access token may be missing, expired, or invalid.'
+            );
+        }
+
         if ($response->failed()) {
             throw new TransportException(
                 "HTTP request failed with status code: {$response->status()}"
@@ -177,12 +346,11 @@ class HttpTransport implements Transport
     {
         $errorMessage = $error['message'] ?? 'Unknown error';
         $errorCode = $error['code'] ?? -1;
-        $errorData = isset($error['data']) ? json_encode($error['data']) : '';
+        $errorData = isset($error['data']) ? json_encode($error['data']) : null;
 
-        $detailsSuffix = '';
-        if (! ($errorData === '' || $errorData === '0' || $errorData === false) && $errorData !== '0' && $errorData !== 'false') {
-            $detailsSuffix = " Details: {$errorData}";
-        }
+        $detailsSuffix = $errorData !== null && $errorData !== false
+            ? " Details: {$errorData}"
+            : '';
 
         throw new TransportException(
             "JSON-RPC error: {$errorMessage} (code: {$errorCode}){$detailsSuffix}"

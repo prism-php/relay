@@ -20,6 +20,8 @@ class HttpTransportFake extends HttpTransport
 
     protected int $failStatus = 500;
 
+    protected bool $returnUnauthorized = false;
+
     protected bool $invalidJsonRpc = false;
 
     protected bool $returnError = false;
@@ -34,6 +36,13 @@ class HttpTransportFake extends HttpTransport
     public function setResponse(string $method, array $response): self
     {
         $this->responses[$method] = $response;
+
+        return $this;
+    }
+
+    public function returnUnauthorized(): self
+    {
+        $this->returnUnauthorized = true;
 
         return $this;
     }
@@ -68,6 +77,14 @@ class HttpTransportFake extends HttpTransport
     #[\Override]
     protected function sendHttpRequest(array $payload): Response
     {
+        if ($this->returnUnauthorized) {
+            $response = Mockery::mock(Response::class);
+            $response->shouldReceive('failed')->andReturn(true);
+            $response->shouldReceive('status')->andReturn(401);
+
+            return $response;
+        }
+
         if ($this->failHttp) {
             return $this->mockFailedResponse();
         }
