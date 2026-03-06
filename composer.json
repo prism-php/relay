@@ -6,7 +6,7 @@
     "php": "^8.4",
     "prism-php/prism": ">=0.93 ^0",
     "laravel/framework": "^12.0|^13.0",
-    "laravel/ai": "^0.2.1",
+    "laravel/ai": "^0.2.6",
     "illuminate/json-schema": "^12.41.1|^13.0"
   },
   "require-dev": {
