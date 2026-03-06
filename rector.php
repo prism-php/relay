@@ -17,7 +17,7 @@ return RectorConfig::configure()
         InlineConstructorDefaultToPropertyRector::class,
     ])
     ->withSets([
-        LevelSetList::UP_TO_PHP_83,
+        LevelSetList::UP_TO_PHP_84,
         SetList::CODE_QUALITY,
         SetList::DEAD_CODE,
         SetList::EARLY_RETURN,

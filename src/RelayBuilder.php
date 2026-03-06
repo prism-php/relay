@@ -22,7 +22,7 @@ class RelayBuilder
 
     /**
      * @param  array<string, mixed>|null  $config
-     * @return array<int, Tool>
+     * @return array<int, Tool|\Laravel\Ai\Contracts\Tool>
      *
      * @throws \Prism\Relay\Exceptions\ServerConfigurationException
      * @throws \Prism\Relay\Exceptions\ToolDefinitionException

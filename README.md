@@ -53,6 +53,7 @@ return [
             'transport' => \Prism\Relay\Enums\Transport::Http,
         ],
     ],
+    'tool_format' => \Prism\Relay\Enums\ToolFormat::RELAY, // ToolFormat::RELAY or ToolFormat::AI_SDK
     'cache_duration' => env('RELAY_TOOLS_CACHE_DURATION', 60), // in minutes (0 to disable)
 ];
 ```
@@ -76,6 +77,53 @@ return $response->text;
 ```
 
 The agent can now use any tools provided by the Puppeteer MCP server, such as navigating to webpages, taking screenshots, clicking buttons, and more.
+
+## Laravel AI SDK Usage
+
+Relay also supports the [Laravel AI SDK](https://github.com/laravel/ai) (`laravel/ai`). Set `tool_format` to `ToolFormat::AI_SDK` to have `Relay::tools()` return `Laravel\Ai\Contracts\Tool` instances instead of Prism tools.
+
+### Via config
+
+Set the format globally in `config/relay.php` or via the `RELAY_TOOL_FORMAT` environment variable:
+
+```php
+// config/relay.php
+'tool_format' => \Prism\Relay\Enums\ToolFormat::AI_SDK,
+```
+
+```ini
+# .env
+RELAY_TOOL_FORMAT=aisdk
+```
+
+Then use `Relay::tools()` as normal — it will return Laravel AI SDK-compatible tools:
+
+```php
+use Prism\Relay\Facades\Relay;
+
+$tools = Relay::tools('puppeteer');
+
+$response = \Laravel\Ai\Ai::text()
+    ->withTools($tools)
+    ->generate('Take a screenshot of laravel.com');
+```
+
+### Via runtime `format()`
+
+If you prefer to keep `tool_format` set to `ToolFormat::RELAY` globally, use the fluent `format()` setter to override it per call:
+
+```php
+use Prism\Relay\Enums\ToolFormat;
+use Prism\Relay\Facades\Relay;
+
+$tools = Relay::make('puppeteer')->format(ToolFormat::AI_SDK)->tools();
+```
+
+> [!NOTE]
+> AI SDK tool support requires `laravel/ai` and `illuminate/json-schema` (available in Laravel 12+). Install them with:
+> ```bash
+> composer require laravel/ai illuminate/json-schema
+> ```
 
 ## Real-World Example
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Prism\Relay;
 
-use Prism\Prism\Tool;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\ToolDefinitionException;
 
@@ -22,7 +21,7 @@ class RelayFactory
 
     /**
      * @param  array<string, mixed>|null  $config
-     * @return array<int, Tool>
+     * @return array<int, \Prism\Prism\Tool|\Laravel\Ai\Contracts\Tool>
      *
      * @throws ServerConfigurationException
      * @throws ToolDefinitionException

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Prism\Relay\Enums\ToolFormat;
 use Prism\Relay\Enums\Transport;
 
 return [
@@ -22,6 +23,18 @@ return [
             'env' => [],
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tool Format
+    |--------------------------------------------------------------------------
+    |
+    | This option controls the format of tools returned by Relay::tools(). Set to
+    | 'relay' (the default) for Prism Tool objects, or set to 'aisdk' for the
+    | Laravel AI SDK contract. The 'aisdk' option requires the laravel/ai.
+    |
+    */
+    'tool_format' => ToolFormat::from(env('RELAY_TOOL_FORMAT', ToolFormat::RELAY->value)),
 
     /*
     |--------------------------------------------------------------------------

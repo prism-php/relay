@@ -207,11 +207,13 @@ class RelayFake extends Relay
         ];
     }
 
-    /**
-     * @param  array<string, mixed>|object|string  $parameters
-     */
+    public function extractBaseToolNamePublic(string $toolName): string
+    {
+        return $this->extractBaseToolName($toolName);
+    }
+
     #[\Override]
-    protected function callMCPTool(string $toolName, $parameters): string
+    protected function callMCPTool(string $toolName, mixed $parameters): string
     {
         // Return predictable results for testing
         if (is_string($parameters)) {

@@ -7,19 +7,17 @@ namespace Tests\Unit;
 use Illuminate\Support\Facades\Cache;
 use Prism\Prism\Schema\AnyOfSchema;
 use Prism\Prism\Tool;
+use Prism\Relay\Enums\ToolFormat;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\ToolDefinitionException;
 use Tests\TestDoubles\RelayFake;
 
 beforeEach(function (): void {
-    // We'll use the RelayFake for all tests to control its behavior
     $this->serverName = 'test_server';
     config()->set('relay.servers.'.$this->serverName, [
         'url' => 'http://example.com/api',
         'timeout' => 30,
     ]);
-
-    // Clear any cached tools
     Cache::forget('relay-tools-definitions-'.$this->serverName);
 });
 
@@ -46,47 +44,30 @@ it('fetches tool definitions', function (): void {
 });
 
 it('supports caching configuration', function (): void {
-    // Just verify the config is read properly
-
-    // Set a non-zero cache duration
-    config()->set('relay.cache_duration', 60); // 60 minutes
+    config()->set('relay.cache_duration', 60);
 
     $relay = new RelayFake($this->serverName);
-
-    // Call tools() to run the code path
     $relay->tools();
 
-    // This is a very basic test just to ensure the cache-related code exists
-    // and executes without error
     expect(config('relay.cache_duration'))->toBe(60);
 });
 
 it('supports disabling cache with cache_duration=0', function (): void {
-    // Set cache duration to 0 to disable caching
     config()->set('relay.cache_duration', 0);
 
-    $relay = new RelayFake($this->serverName);
-
-    // Cache key based on server name
     $cacheKey = "relay-tools-definitions-{$this->serverName}";
-
-    // Clear any existing cache
     Cache::forget($cacheKey);
 
-    // Call tools to make sure it runs through the code path
+    $relay = new RelayFake($this->serverName);
     $relay->tools();
 
-    // Verify cache doesn't contain the key (since duration is 0)
     expect(Cache::has($cacheKey))->toBeFalse();
 });
 
 it('creates different tool handlers based on inputSchema', function (): void {
     $relay = new RelayFake($this->serverName);
-
-    // Call tools() to create handlers
     $tools = $relay->tools();
 
-    // Test we have the tools we expect
     expect($tools)->toHaveCount(7);
 });
 
@@ -94,8 +75,7 @@ it('handles different parameter types correctly in tools', function (): void {
     $relay = new RelayFake($this->serverName);
     $tools = $relay->tools();
 
-    // The RelayFake already implements test handlers that we can verify
-    expect(count($tools))->toBeGreaterThan(0);
+    expect($tools)->not->toBeEmpty();
 });
 
 it('throws exception when tool definition fetch fails', function (): void {
@@ -109,17 +89,14 @@ it('throws exception when tool definition fetch fails', function (): void {
 it('handles invalid tool definitions', function (): void {
     $relay = new RelayFake($this->serverName);
 
-    // Set invalid tool definitions
     $relay->setToolDefinitions([
         ['description' => 'Missing name'],
-        [], // Empty definition
+        [],
     ]);
 
     $tools = $relay->tools();
-    expect($tools)->toBeArray();
+    expect($tools)->toBeArray()->toBeEmpty();
 
-    // The fake probably auto-adds tools, so just check for expected behavior
-    // when a mix of valid and invalid tools is provided
     $relay->setToolDefinitions([
         ['name' => 'valid_tool', 'description' => 'A valid tool'],
         ['description' => 'Missing name'],
@@ -127,13 +104,50 @@ it('handles invalid tool definitions', function (): void {
 
     $tools = $relay->tools();
     expect($tools)->toBeArray()
-        ->and($tools !== [])->toBeTrue();
+        ->not->toBeEmpty()
+        ->toHaveCount(1);
+});
+
+it('returns laravel ai tools when tool_format is aisdk', function (): void {
+    config()->set('relay.tool_format', ToolFormat::AI_SDK);
+
+    $relay = new RelayFake($this->serverName);
+    $tools = $relay->tools();
+
+    expect($tools[0])->toBeInstanceOf(\Laravel\Ai\Contracts\Tool::class);
+});
+
+it('runtime format() overrides config tool_format', function (): void {
+    config()->set('relay.tool_format', ToolFormat::RELAY);
+
+    $relay = (new RelayFake($this->serverName))->format(ToolFormat::AI_SDK);
+    $tools = $relay->tools();
+
+    expect($tools[0])->toBeInstanceOf(\Laravel\Ai\Contracts\Tool::class);
+});
+
+it('extractBaseToolName strips the relay namespace prefix', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    expect($relay->extractBaseToolNamePublic("relay__{$this->serverName}__test_tool"))
+        ->toBe('test_tool');
+});
+
+it('extractBaseToolName handles tool names that contain double underscores', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    expect($relay->extractBaseToolNamePublic("relay__{$this->serverName}__my__complex__tool"))
+        ->toBe('my__complex__tool');
+});
+
+it('extractBaseToolName passes through names that do not match the prefix', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    expect($relay->extractBaseToolNamePublic('plain_tool_name'))->toBe('plain_tool_name');
 });
 
 it('supports mapping any of schemas', function (): void {
     $relay = new RelayFake($this->serverName);
-
-    // Call tools() to create handlers
     $tools = $relay->tools();
 
     $tool = $tools[6];
