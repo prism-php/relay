@@ -78,7 +78,7 @@ class Relay
     }
 
     /**
-     * @return array<int, Tool>
+     * @return array<int, Tool|\Laravel\Ai\Contracts\Tool>
      *
      * @throws ToolDefinitionException
      */
