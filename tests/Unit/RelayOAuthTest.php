@@ -41,7 +41,7 @@ it('withToken on Stdio-configured Relay throws ServerConfigurationException', fu
 
     $relay = new Relay($this->serverName);
 
-    expect(fn (): \Prism\Relay\Relay => $relay->withToken('my-oauth-token'))
+    expect(fn (): Relay => $relay->withToken('my-oauth-token'))
         ->toThrow(ServerConfigurationException::class, 'OAuth access tokens are only supported with HTTP transport');
 });
 
@@ -101,7 +101,7 @@ it('cache key does not include hash when no token is set', function (): void {
 });
 
 it('two different tokens produce two different cache keys', function (): void {
-    $makeRelay = fn (): \Prism\Relay\Relay => new class($this->serverName) extends Relay
+    $makeRelay = fn (): Relay => new class($this->serverName) extends Relay
     {
         public function getCacheKey(): string
         {

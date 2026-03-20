@@ -30,7 +30,7 @@ it('initializes with correct server configuration', function (): void {
 
 it('throws exception for non-existent server', function (): void {
     $nonExistentServer = 'non_existent_server';
-    expect(fn (): \Tests\TestDoubles\RelayFake => new RelayFake($nonExistentServer))
+    expect(fn (): RelayFake => new RelayFake($nonExistentServer))
         ->toThrow(ServerConfigurationException::class);
 });
 

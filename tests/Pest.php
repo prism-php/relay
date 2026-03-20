@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use Tests\TestCase;
 
 /*
 |--------------------------------------------------------------------------
@@ -10,4 +11,4 @@ declare(strict_types=1);
 | Custom functions to be used in tests.
 |
 */
-uses(Tests\TestCase::class)->in(__DIR__);
+uses(TestCase::class)->in(__DIR__);

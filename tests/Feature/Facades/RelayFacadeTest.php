@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Facades;
 
+use Prism\Prism\Tool;
+use Prism\Relay\Enums\Transport;
 use Prism\Relay\Facades\Relay;
 use Prism\Relay\Relay as RelayClass;
 use Prism\Relay\RelayFactory;
@@ -43,8 +45,8 @@ it('can get tools through the facade', function (): void {
         ->once()
         ->with('tools_test')
         ->andReturn([
-            new \Prism\Prism\Tool,
-            new \Prism\Prism\Tool,
+            new Tool,
+            new Tool,
         ]);
 
     app()->instance('relay', $mock);
@@ -58,7 +60,7 @@ it('can get tools through the facade', function (): void {
 
 it('can make relay with custom config through facade', function (): void {
     $customConfig = [
-        'transport' => \Prism\Relay\Enums\Transport::Http,
+        'transport' => Transport::Http,
         'url' => 'http://custom.example.com/api',
         'timeout' => 45,
     ];
@@ -73,7 +75,7 @@ it('can make relay with custom config through facade', function (): void {
 
 it('can get tools with custom config through facade', function (): void {
     $customConfig = [
-        'transport' => \Prism\Relay\Enums\Transport::Http,
+        'transport' => Transport::Http,
         'url' => 'http://tools.example.com/api',
         'timeout' => 30,
     ];
@@ -84,7 +86,7 @@ it('can get tools with custom config through facade', function (): void {
         ->once()
         ->with('custom_tools_server', $customConfig)
         ->andReturn([
-            new \Prism\Prism\Tool,
+            new Tool,
         ]);
 
     app()->instance('relay', $mock);

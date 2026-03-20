@@ -11,7 +11,7 @@ it('validates config during construction', function (): void {
         'timeout' => 30,
     ];
 
-    expect(fn (): \Tests\TestDoubles\StdioTransportFake => new StdioTransportFake($config))
+    expect(fn (): StdioTransportFake => new StdioTransportFake($config))
         ->toThrow(ServerConfigurationException::class, 'The "command" configuration is required for stdio transport');
 });
 
@@ -21,7 +21,7 @@ it('requires env configuration', function (): void {
         'timeout' => 30,
     ];
 
-    expect(fn (): \Tests\TestDoubles\StdioTransportFake => new StdioTransportFake($config))
+    expect(fn (): StdioTransportFake => new StdioTransportFake($config))
         ->toThrow(ServerConfigurationException::class, 'The "env" configuration is required for stdio transport');
 });
 
