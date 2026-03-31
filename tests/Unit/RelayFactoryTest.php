@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Prism\Relay\Enums\Transport;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Relay;
 use Prism\Relay\RelayFactory;
@@ -24,7 +25,7 @@ it('creates a Relay instance', function (): void {
 it('throws exception for non-existent server', function (): void {
     $factory = new RelayFactory;
 
-    expect(fn (): \Prism\Relay\Relay => $factory->make('non_existent_server'))
+    expect(fn (): Relay => $factory->make('non_existent_server'))
         ->toThrow(ServerConfigurationException::class, "MCP server 'non_existent_server' is not configured.");
 });
 
@@ -51,7 +52,7 @@ it('handles tool definition exceptions', function (): void {
 
 it('creates a Relay instance with custom config', function (): void {
     $customConfig = [
-        'transport' => \Prism\Relay\Enums\Transport::Http,
+        'transport' => Transport::Http,
         'url' => 'http://custom.example.com/api',
         'timeout' => 45,
     ];
@@ -67,7 +68,7 @@ it('creates a Relay instance with custom config', function (): void {
 
 it('creates Relay with custom config when config parameter is provided', function (): void {
     $customConfig = [
-        'transport' => \Prism\Relay\Enums\Transport::Stdio,
+        'transport' => Transport::Stdio,
         'command' => ['echo', 'test'],
         'timeout' => 60,
         'env' => ['TEST_VAR' => 'test_value'],
@@ -106,7 +107,7 @@ it('uses Laravel config when no custom config provided', function (): void {
 
 it('tools method works with custom config', function (): void {
     $customConfig = [
-        'transport' => \Prism\Relay\Enums\Transport::Http,
+        'transport' => Transport::Http,
         'url' => 'http://tools.example.com/api',
         'timeout' => 30,
     ];
@@ -119,8 +120,8 @@ it('tools method works with custom config', function (): void {
     // Test method signature (this will call the method but we expect it might fail due to no real server)
     try {
         $factory->tools('tools_server', $customConfig);
-    } catch (\Throwable $e) {
+    } catch (Throwable $e) {
         // Expected to fail since we don't have a real MCP server, but method should accept the parameters
-        expect($e)->toBeInstanceOf(\Throwable::class);
+        expect($e)->toBeInstanceOf(Throwable::class);
     }
 });

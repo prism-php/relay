@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Prism\Relay;
 
 use Prism\Prism\Tool;
+use Prism\Relay\Exceptions\ServerConfigurationException;
+use Prism\Relay\Exceptions\ToolDefinitionException;
 
 class RelayBuilder
 {
@@ -13,7 +15,7 @@ class RelayBuilder
     /**
      * @param  array<string, mixed>|null  $config
      *
-     * @throws \Prism\Relay\Exceptions\ServerConfigurationException
+     * @throws ServerConfigurationException
      */
     public function make(string $serverName, ?array $config = null): Relay
     {
@@ -24,8 +26,8 @@ class RelayBuilder
      * @param  array<string, mixed>|null  $config
      * @return array<int, Tool|\Laravel\Ai\Contracts\Tool>
      *
-     * @throws \Prism\Relay\Exceptions\ServerConfigurationException
-     * @throws \Prism\Relay\Exceptions\ToolDefinitionException
+     * @throws ServerConfigurationException
+     * @throws ToolDefinitionException
      */
     public function tools(string $serverName, ?array $config = null): array
     {

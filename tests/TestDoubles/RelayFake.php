@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\TestDoubles;
 
+use Prism\Relay\Exceptions\ServerConfigurationException;
+use Prism\Relay\Exceptions\ToolDefinitionException;
 use Prism\Relay\Relay;
 use Prism\Relay\Transport\Transport;
 
@@ -23,7 +25,7 @@ class RelayFake extends Relay
     /**
      * Sets a custom transport for testing purposes.
      *
-     * @throws \Prism\Relay\Exceptions\ServerConfigurationException
+     * @throws ServerConfigurationException
      */
     public function setTransport(Transport $transport): self
     {
@@ -59,13 +61,13 @@ class RelayFake extends Relay
     /**
      * @return array<int, array<string, mixed>>
      *
-     * @throws \Prism\Relay\Exceptions\ToolDefinitionException
+     * @throws ToolDefinitionException
      */
     #[\Override]
     protected function fetchToolDefinitions(): array
     {
         if ($this->shouldThrowOnTools) {
-            throw new \Prism\Relay\Exceptions\ToolDefinitionException($this->toolsExceptionMessage);
+            throw new ToolDefinitionException($this->toolsExceptionMessage);
         }
 
         if ($this->toolDefinitions !== []) {

@@ -14,7 +14,7 @@ class RelayServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             __DIR__.'/../config/relay.php', 'relay'
         );
-        $this->app->bind('relay', fn (): \Prism\Relay\RelayFactory => new RelayFactory);
+        $this->app->bind('relay', fn (): RelayFactory => new RelayFactory);
     }
 
     public function boot(): void

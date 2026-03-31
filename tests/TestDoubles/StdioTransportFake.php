@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\TestDoubles;
 
 use Mockery;
+use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\TransportException;
 use Prism\Relay\Transport\StdioTransport;
 use Symfony\Component\Process\InputStream;
@@ -34,7 +35,7 @@ class StdioTransportFake extends StdioTransport
     protected ?string $lastMethod = null;
 
     /**
-     * @throws \Prism\Relay\Exceptions\ServerConfigurationException
+     * @throws ServerConfigurationException
      */
     public function __construct(array $config)
     {
@@ -159,7 +160,7 @@ class StdioTransportFake extends StdioTransport
     public function shouldBeRunning(bool $running = true): self
     {
         $this->processIsRunning = $running;
-        if ($this->process instanceof \Symfony\Component\Process\Process) {
+        if ($this->process instanceof Process) {
             $this->process->shouldReceive('isRunning')->andReturn($running)->byDefault();
         }
 

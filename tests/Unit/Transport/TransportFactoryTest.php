@@ -7,6 +7,7 @@ use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Transport\HttpSseTransport;
 use Prism\Relay\Transport\HttpTransport;
 use Prism\Relay\Transport\StdioTransport;
+use Prism\Relay\Transport\Transport;
 use Prism\Relay\Transport\TransportFactory;
 
 it('creates HTTP transport', function (): void {
@@ -41,7 +42,7 @@ it('throws exception for STDIO transport with missing command', function (): voi
         'timeout' => 30,
     ];
 
-    expect(fn (): \Prism\Relay\Transport\Transport => TransportFactory::create(TransportEnum::Stdio, $config))
+    expect(fn (): Transport => TransportFactory::create(TransportEnum::Stdio, $config))
         ->toThrow(ServerConfigurationException::class, 'The "command" configuration is required for stdio transport');
 });
 
@@ -51,7 +52,7 @@ it('throws exception for STDIO transport with missing env', function (): void {
         'timeout' => 30,
     ];
 
-    expect(fn (): \Prism\Relay\Transport\Transport => TransportFactory::create(TransportEnum::Stdio, $config))
+    expect(fn (): Transport => TransportFactory::create(TransportEnum::Stdio, $config))
         ->toThrow(ServerConfigurationException::class, 'The "env" configuration is required for stdio transport');
 });
 

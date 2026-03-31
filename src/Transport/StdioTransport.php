@@ -146,7 +146,7 @@ class StdioTransport implements Transport
     protected function launchProcess(): void
     {
         try {
-            if (! $this->process instanceof \Symfony\Component\Process\Process) {
+            if (! $this->process instanceof Process) {
                 throw new TransportException('Process not initialized');
             }
 
@@ -165,7 +165,7 @@ class StdioTransport implements Transport
     protected function verifyProcessStarted(): void
     {
         if (! $this->isProcessRunning()) {
-            if (! $this->process instanceof \Symfony\Component\Process\Process) {
+            if (! $this->process instanceof Process) {
                 throw new TransportException('Process not initialized');
             }
 
@@ -194,7 +194,7 @@ class StdioTransport implements Transport
 
     protected function sendPingRequest(): void
     {
-        if (! $this->inputStream instanceof \Symfony\Component\Process\InputStream) {
+        if (! $this->inputStream instanceof InputStream) {
             throw new TransportException('Input stream not initialized');
         }
 
@@ -242,7 +242,7 @@ class StdioTransport implements Transport
      */
     protected function prepareRequest(string $method, array $params = []): void
     {
-        if (! $this->inputStream instanceof \Symfony\Component\Process\InputStream || ! $this->process instanceof \Symfony\Component\Process\Process) {
+        if (! $this->inputStream instanceof InputStream || ! $this->process instanceof Process) {
             throw new TransportException('Transport not properly initialized');
         }
 
@@ -274,7 +274,7 @@ class StdioTransport implements Transport
      */
     protected function waitForResponse(): array
     {
-        if (! $this->process instanceof \Symfony\Component\Process\Process) {
+        if (! $this->process instanceof Process) {
             throw new TransportException('Process not initialized');
         }
 
@@ -433,7 +433,7 @@ class StdioTransport implements Transport
     protected function handleResponseTimeout(string $responseBuffer, int $timeout): array
     {
         if (! $this->isProcessRunning()) {
-            if (! $this->process instanceof \Symfony\Component\Process\Process) {
+            if (! $this->process instanceof Process) {
                 throw new TransportException('Process terminated unexpectedly and is no longer available');
             }
 
@@ -456,7 +456,7 @@ class StdioTransport implements Transport
 
     protected function closeInputStream(): void
     {
-        if ($this->inputStream instanceof \Symfony\Component\Process\InputStream) {
+        if ($this->inputStream instanceof InputStream) {
             $this->inputStream->close();
             $this->inputStream = null;
         }
