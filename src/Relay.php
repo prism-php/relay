@@ -376,6 +376,12 @@ class Relay
             return new AnyOfSchema($itemsSchema, $name, $description);
         }
 
+        $options = data_get($property, 'enum');
+
+        if (is_array($options) && $options !== [] && $this->isEnumOptions($options)) {
+            return new EnumSchema($name, $description, array_values($options));
+        }
+
         $itemsSchema = $this->getSchemeParameter('', data_get($property, 'items', []), $definitionName);
 
         return match ($type) {
@@ -387,6 +393,23 @@ class Relay
             'array' => $itemsSchema instanceof Schema ? new ArraySchema($name, $description, $itemsSchema) : null,
             default => null,
         };
+    }
+
+    /**
+     * EnumSchema resolves its own type from the options, so anything it cannot
+     * type has to fall through to the regular resolution.
+     *
+     * @param  array<int|string, mixed>  $options
+     */
+    protected function isEnumOptions(array $options): bool
+    {
+        foreach ($options as $option) {
+            if (! is_string($option) && ! is_int($option) && ! is_float($option)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
