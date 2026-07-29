@@ -6,6 +6,8 @@ namespace Tests\Unit;
 
 use Illuminate\Support\Facades\Cache;
 use Prism\Prism\Schema\AnyOfSchema;
+use Prism\Prism\Schema\ArraySchema;
+use Prism\Prism\Schema\EnumSchema;
 use Prism\Prism\Tool;
 use Prism\Relay\Exceptions\ServerConfigurationException;
 use Prism\Relay\Exceptions\ToolDefinitionException;
@@ -87,7 +89,7 @@ it('creates different tool handlers based on inputSchema', function (): void {
     $tools = $relay->tools();
 
     // Test we have the tools we expect
-    expect($tools)->toHaveCount(7);
+    expect($tools)->toHaveCount(8);
 });
 
 it('handles different parameter types correctly in tools', function (): void {
@@ -154,4 +156,32 @@ it('supports mapping any of schemas', function (): void {
             ],
             'description' => 'Parameter nameOrId for union_tool',
         ]);
+});
+
+it('maps json schema enums to enum schemas', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    $tool = $relay->tools()[7];
+    $status = $tool->parameters()['status'];
+
+    expect($status)
+        ->toBeInstanceOf(EnumSchema::class)
+        ->and($status->toArray())->toBe([
+            'description' => 'The status to filter on',
+            'enum' => ['open', 'closed'],
+            'type' => 'string',
+        ]);
+});
+
+it('maps json schema enums nested in array items', function (): void {
+    $relay = new RelayFake($this->serverName);
+
+    $tool = $relay->tools()[7];
+    $categories = $tool->parameters()['categories'];
+
+    expect($categories)
+        ->toBeInstanceOf(ArraySchema::class)
+        ->and($categories->items)
+        ->toBeInstanceOf(EnumSchema::class)
+        ->and($categories->items->options)->toBe(['news', 'sport']);
 });

@@ -206,6 +206,29 @@ class RelayFake extends Relay
                     'required' => ['nameOrId'],
                 ],
             ],
+            [
+                'name' => 'enum_tool',
+                'description' => 'A tool with enum parameters',
+                'inputSchema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'status' => [
+                            'type' => 'string',
+                            'description' => 'The status to filter on',
+                            'enum' => ['open', 'closed'],
+                        ],
+                        'categories' => [
+                            'type' => 'array',
+                            'description' => 'The categories to filter on',
+                            'items' => [
+                                'type' => 'string',
+                                'enum' => ['news', 'sport'],
+                            ],
+                        ],
+                    ],
+                    'required' => ['status'],
+                ],
+            ],
         ];
     }
 
